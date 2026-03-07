@@ -1,0 +1,5 @@
+/home/wtandrews/llm-research/llm.cpp/build/CMakeFiles/jarvis_lib.dir
+/home/wtandrews/llm-research/llm.cpp/build/CMakeFiles/jarvis.dir
+/home/wtandrews/llm-research/llm.cpp/build/CMakeFiles/tests.dir
+/home/wtandrews/llm-research/llm.cpp/build/CMakeFiles/edit_cache.dir
+/home/wtandrews/llm-research/llm.cpp/build/CMakeFiles/rebuild_cache.dir

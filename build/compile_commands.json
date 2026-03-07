@@ -1,0 +1,47 @@
+[
+{
+  "directory": "/home/wtandrews/llm-research/llm.cpp/build",
+  "command": "/usr/bin/g++  -I/home/wtandrews/llm-research/llm.cpp/include -O3 -march=native -mavx512f -fopenmp -Wall -Wextra -Wpedantic -std=gnu++23 -o CMakeFiles/jarvis_lib.dir/src/ops/matmul.cpp.o -c /home/wtandrews/llm-research/llm.cpp/src/ops/matmul.cpp",
+  "file": "/home/wtandrews/llm-research/llm.cpp/src/ops/matmul.cpp"
+},
+{
+  "directory": "/home/wtandrews/llm-research/llm.cpp/build",
+  "command": "/usr/bin/g++  -I/home/wtandrews/llm-research/llm.cpp/include -O3 -march=native -mavx512f -fopenmp -Wall -Wextra -Wpedantic -std=gnu++23 -o CMakeFiles/jarvis_lib.dir/src/ops/ops.cpp.o -c /home/wtandrews/llm-research/llm.cpp/src/ops/ops.cpp",
+  "file": "/home/wtandrews/llm-research/llm.cpp/src/ops/ops.cpp"
+},
+{
+  "directory": "/home/wtandrews/llm-research/llm.cpp/build",
+  "command": "/usr/bin/g++  -I/home/wtandrews/llm-research/llm.cpp/include -O3 -march=native -mavx512f -fopenmp -Wall -Wextra -Wpedantic -std=gnu++23 -o CMakeFiles/jarvis_lib.dir/src/concurrent_hashmap.cpp.o -c /home/wtandrews/llm-research/llm.cpp/src/concurrent_hashmap.cpp",
+  "file": "/home/wtandrews/llm-research/llm.cpp/src/concurrent_hashmap.cpp"
+},
+{
+  "directory": "/home/wtandrews/llm-research/llm.cpp/build",
+  "command": "/usr/bin/g++  -I/home/wtandrews/llm-research/llm.cpp/include -O3 -march=native -mavx512f -fopenmp -Wall -Wextra -Wpedantic -std=gnu++23 -o CMakeFiles/jarvis_lib.dir/src/tensor.cpp.o -c /home/wtandrews/llm-research/llm.cpp/src/tensor.cpp",
+  "file": "/home/wtandrews/llm-research/llm.cpp/src/tensor.cpp"
+},
+{
+  "directory": "/home/wtandrews/llm-research/llm.cpp/build",
+  "command": "/usr/bin/g++  -I/home/wtandrews/llm-research/llm.cpp/include -O3 -march=native -mavx512f -fopenmp -Wall -Wextra -Wpedantic -std=gnu++23 -o CMakeFiles/jarvis_lib.dir/src/tokenizer.cpp.o -c /home/wtandrews/llm-research/llm.cpp/src/tokenizer.cpp",
+  "file": "/home/wtandrews/llm-research/llm.cpp/src/tokenizer.cpp"
+},
+{
+  "directory": "/home/wtandrews/llm-research/llm.cpp/build",
+  "command": "/usr/bin/g++  -I/home/wtandrews/llm-research/llm.cpp/include -O3 -march=native -mavx512f -fopenmp -Wall -Wextra -Wpedantic -std=gnu++23 -o CMakeFiles/jarvis_lib.dir/src/transformer.cpp.o -c /home/wtandrews/llm-research/llm.cpp/src/transformer.cpp",
+  "file": "/home/wtandrews/llm-research/llm.cpp/src/transformer.cpp"
+},
+{
+  "directory": "/home/wtandrews/llm-research/llm.cpp/build",
+  "command": "/usr/bin/g++  -I/home/wtandrews/llm-research/llm.cpp/include -O3 -march=native -mavx512f -fopenmp -Wall -Wextra -Wpedantic -std=gnu++23 -o CMakeFiles/jarvis_lib.dir/src/utils.cpp.o -c /home/wtandrews/llm-research/llm.cpp/src/utils.cpp",
+  "file": "/home/wtandrews/llm-research/llm.cpp/src/utils.cpp"
+},
+{
+  "directory": "/home/wtandrews/llm-research/llm.cpp/build",
+  "command": "/usr/bin/g++  -I/home/wtandrews/llm-research/llm.cpp/include -O3 -march=native -mavx512f -fopenmp -Wall -Wextra -Wpedantic -std=gnu++23 -o CMakeFiles/jarvis.dir/src/main.cpp.o -c /home/wtandrews/llm-research/llm.cpp/src/main.cpp",
+  "file": "/home/wtandrews/llm-research/llm.cpp/src/main.cpp"
+},
+{
+  "directory": "/home/wtandrews/llm-research/llm.cpp/build",
+  "command": "/usr/bin/g++  -I/home/wtandrews/llm-research/llm.cpp/include -O3 -march=native -mavx512f -fopenmp -Wall -Wextra -Wpedantic -std=gnu++23 -o CMakeFiles/tests.dir/tests/tests.cpp.o -c /home/wtandrews/llm-research/llm.cpp/tests/tests.cpp",
+  "file": "/home/wtandrews/llm-research/llm.cpp/tests/tests.cpp"
+}
+]
