@@ -1,2 +1,0 @@
-/usr/bin/ar qc lib/libjarvis_lib.a CMakeFiles/jarvis_lib.dir/src/ops/matmul.cpp.o CMakeFiles/jarvis_lib.dir/src/ops/ops.cpp.o CMakeFiles/jarvis_lib.dir/src/concurrent_hashmap.cpp.o CMakeFiles/jarvis_lib.dir/src/tensor.cpp.o CMakeFiles/jarvis_lib.dir/src/tokenizer.cpp.o CMakeFiles/jarvis_lib.dir/src/transformer.cpp.o CMakeFiles/jarvis_lib.dir/src/utils.cpp.o
-/usr/bin/ranlib lib/libjarvis_lib.a
