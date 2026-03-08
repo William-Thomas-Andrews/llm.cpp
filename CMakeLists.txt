@@ -9,7 +9,7 @@ set(CMAKE_CXX_COMPILER /usr/bin/g++)
 
 
 # Add compiler optimizations, warnings, and other options
-add_compile_options(-O3 -march=native -mavx512f -fopenmp -Wall -Wextra -Wpedantic)
+add_compile_options(-O3 -march=native -mavx2 -fopenmp -Wall -Wextra -Wpedantic)
 find_package(OpenMP REQUIRED)
 
 # Set output directories

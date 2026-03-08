@@ -6,5 +6,5 @@ CXX_DEFINES =
 
 CXX_INCLUDES = -I/home/wtandrews/llm-research/llm.cpp/include
 
-CXX_FLAGS = -O3 -march=native -mavx512f -fopenmp -Wall -Wextra -Wpedantic -std=gnu++23
+CXX_FLAGS = -O3 -march=native -mavx2 -fopenmp -Wall -Wextra -Wpedantic -std=gnu++23
 
