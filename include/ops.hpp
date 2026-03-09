@@ -39,7 +39,6 @@ Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N);
 
 // ---
 // Normalization
-// Tensor rsqrt(Tensor&)
 
 // RMS Norm
 Tensor rmsnorm(Tensor& X, Tensor& weight, float eps = 1e-6f);
@@ -48,8 +47,11 @@ Tensor rmsnorm(Tensor& X, Tensor& weight, float eps = 1e-6f);
 // Attention
 Tensor softmax(const Tensor& X, int dim);
 
+// Apply rotary positional embeddings to a single vector
+void rope_vector(float* vec, int head_dim, int position);
+
 // Apply rotary positional embeddings to Q and K
-void rope(Tensor& q, Tensor& k, int head_dim, int pos);
+void rope(Tensor& Q, Tensor& K, int head_dim, int position);
 
 // ---
 // Activations

@@ -127,10 +127,36 @@ Tensor softmax(const Tensor& X, int dim) {
 //
 // ---
 
+void rope_vector(float* vec, int head_dim, int position) {
+    for (int i = 0; i < head_dim / 2; i++) {
+        float freq = 1.0f / std::pow(10000.0f, (2.0f * i) / head_dim);
+        float theta = position * freq;
+        float cos_val = std::cos(theta);
+        float sin_val = std::sin(theta);
 
+        float x = vec[2*i];        // first of the pair
+        float y = vec[2*i + 1];    // second of the pair
+
+        vec[2*i]     = x * cos_val - y * sin_val;
+        vec[2*i + 1] = x * sin_val + y * cos_val;
+    }
+}
 
 // Apply rotary positional embeddings to Q and K
-void rope(Tensor& q, Tensor& k, int head_dim, int pos);
+void rope(Tensor& Q, Tensor& K, int position) {
+    int num_heads  = Q.shape_at(0);
+    int head_dim   = Q.shape_at(1);
+
+    float* q = Q.data();
+    float* k = K.data();
+
+    for (int h = 0; h < num_heads; h++) {
+        float* q_head = q + h * head_dim;
+        float* k_head = k + h * head_dim;
+        rope_vector(q_head, head_dim, position);
+        rope_vector(k_head, head_dim, position);
+    }
+}
 
 //
 // ---
