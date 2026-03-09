@@ -124,13 +124,14 @@ Tensor silu(const Tensor& x) {
     float* y = Y.data();
 
     for (int i = 0; i < Y.numel(); i++)
-        y[i] = y[i] * (1 / (1 + std::exp(-y[i])));
+        y[i] = y[i] * (1.0f / (1.0f + std::exp(-y[i])));
 
     return Y;
 }
 
 // SwiGLU: silu(gate) * x — used in LLaMA FFN
 Tensor swiglu(Tensor& gate, Tensor& X) {
+    if (gate.numel() != X.numel()) throw std::runtime_error("swiglu: size mismatch");
     Tensor Y = silu(gate);
     float* y = Y.data();
     float* x = X.data();
