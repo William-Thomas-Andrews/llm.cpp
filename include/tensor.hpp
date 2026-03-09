@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stddef.h>
 #include <array>
 #include <cstdlib>
@@ -5,24 +7,17 @@
 #include <memory>
 #include <exception>
 #include <cstring>
+#include <cblas.h>
 
 
 
 class Tensor {
-    private:
+
+    public:
         static constexpr int BYTES_PER_ELEMENT = 4;
         static constexpr int BYTE_ALIGNMENT = 32;
         static constexpr int MAX_DIMS = 8;                       // How many dims we can possibly hold (transformers never need more than this)
-
-        std::unique_ptr<float[]> owned_data_;
-        float* data_;
-        size_t nelements_;
-        size_t nbytes_;
-        int ndim_;
-        std::array<int, MAX_DIMS> shape_;
-        std::array<size_t, MAX_DIMS> strides_;
-
-    public:
+        
         // Constructors
         Tensor(std::array<int, MAX_DIMS> shape, int ndim); // Default constructor
         Tensor(float* data, size_t n, std::array<int, MAX_DIMS> shape, int ndim); // Default constructor (view constructor)
@@ -35,6 +30,7 @@ class Tensor {
         // Metadata queries
         int shape_at(int dim) const;
         std::string shape() const;
+        std::array<int, MAX_DIMS> shape_array() const;
         int ndim() const;
         size_t numel() const;
         size_t nbytes() const;
@@ -43,7 +39,7 @@ class Tensor {
 
         // Data access
         float* data();
-        const float* data() const;
+        // const float* data() const;
         float& at(std::array<int, MAX_DIMS> indices);
         const float& at(std::array<int, MAX_DIMS> indices) const;
 
@@ -55,4 +51,13 @@ class Tensor {
         // Utility
         void fill(float value);
         void print() const;
+
+    private:
+        std::unique_ptr<float[]> owned_data_;
+        float* data_;
+        size_t nelements_;
+        size_t nbytes_;
+        int ndim_;
+        std::array<int, MAX_DIMS> shape_;
+        std::array<size_t, MAX_DIMS> strides_;
 };

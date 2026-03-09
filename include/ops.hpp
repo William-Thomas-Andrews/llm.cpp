@@ -1,0 +1,61 @@
+#pragma once
+
+#include "tensor.hpp"
+#include <cmath>
+
+// ---
+// Backend selector
+// Extensible: add CUDA, OpenCL, Metal backends later
+
+enum class Backend {
+    NAIVE,
+    CPU,
+    CUDA,   // future
+};
+
+enum class Multiplication {
+    NAIVE,
+    BLAS,
+};
+
+
+// ---
+// Matrix multiplication
+// C = A @ B
+// A: [M, K], B: [K, N], C: [M, N]
+Tensor matmul(Tensor& A, Tensor& B, Multiplication mult);
+
+// ---
+// Naive Matrix multiplication
+// C = A @ B
+// A: [M, K], B: [K, N], C: [M, N]
+Tensor matmul_naive(Tensor& A, Tensor& B, int M, int K, int N);
+
+// ---
+// Accelerated Matrix multiplication (OpenBlas)
+// C = A @ B
+// A: [M, K], B: [K, N], C: [M, N]
+Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N);
+
+// ---
+// Normalization
+Tensor rmsnorm(Tensor& x, Tensor& weight, float eps = 1e-6f);
+
+// ---
+// Attention
+Tensor softmax(const Tensor& X, int dim);
+
+// Apply rotary positional embeddings to Q and K
+void rope(Tensor& q, Tensor& k, int head_dim, int pos);
+
+// ---
+// Activations
+Tensor silu(const Tensor& X);
+
+// SwiGLU: silu(gate) * x — used in LLaMA FFN
+Tensor swiglu(const Tensor& gate, const Tensor& X);
+
+// ---
+// Elementwise
+Tensor add(Tensor& A, Tensor& B);
+Tensor mul(Tensor& A, Tensor& B);

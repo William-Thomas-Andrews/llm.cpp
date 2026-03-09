@@ -19,8 +19,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # Library target
 add_library(jarvis_lib
-    src/ops/matmul.cpp
-    src/ops/ops.cpp
+    src/ops.cpp
     src/concurrent_hashmap.cpp
     src/tensor.cpp
     src/tokenizer.cpp

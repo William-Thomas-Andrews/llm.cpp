@@ -166,6 +166,10 @@ std::string Tensor::shape() const {
     return str + std::to_string(shape_[i]) + ")";
 }
 
+std::array<int, Tensor::MAX_DIMS> Tensor::shape_array() const {
+    return shape_;
+}
+
 int Tensor::ndim() const {
     return ndim_;
 }
@@ -211,9 +215,9 @@ float* Tensor::data() {
     return data_;
 }
 
-const float* Tensor::data() const {
-    return data_;
-}
+// const float* Tensor::data() const {
+//     return data_;
+// }
 
 float& Tensor::at(std::array<int, MAX_DIMS> indices) {
     char* ptr = reinterpret_cast<char*>(data_);
