@@ -86,24 +86,24 @@ struct FFNLayer {
 // Full Model
 
 class Transformer {
-    public:
-        Transformer(const std::string& model_path);
+public:
+    Transformer(const std::string& model_path);
 
-        // run forward pass, return logits over vocabulary
-        Tensor forward(const std::vector<int>& token_ids, int pos);
+    // run forward pass, return logits over vocabulary
+    Tensor forward(const std::vector<int>& token_ids, int pos);
 
-        // greedy sample — just argmax
-        int greedy_sample(const Tensor& logits);
+    // greedy sample — just argmax
+    float greedy_sample(Tensor& logits);
 
-        // temperature sample
-        int sample(const Tensor& logits, float temperature = 1.0f);
+    // temperature sample
+    int sample(const Tensor& logits, float temperature = 1.0f);
 
-        const TransformerConfig& config() const;
+    const TransformerConfig& config() const;
 
-    private:
-        TransformerConfig config_;
-        TransformerWeights weights_;
-        KVCache kv_cache_;
+private:
+    TransformerConfig config_;
+    TransformerWeights weights_;
+    KVCache kv_cache_;
 
-        void load(const std::string& model_path);
+    void load(const std::string& model_path);
 };
