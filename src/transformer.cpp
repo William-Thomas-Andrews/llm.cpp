@@ -30,8 +30,9 @@ Tensor FFNLayer::forward(const Tensor& x, const TransformerWeights& w,
 
 // ---
 // Full Model
-Transformer::Transformer(const std::string& model_path) {
-
+Transformer::Transformer(const std::string& model_path) : tokenizer_(model_path + "/tokenizer.model") {
+    load(model_path);
+    // TODO: finish construction logic
 }
 
 // run forward pass, return logits over vocabulary

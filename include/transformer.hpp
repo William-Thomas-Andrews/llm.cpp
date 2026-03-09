@@ -5,6 +5,7 @@
 #include <array>
 #include "tensor.hpp"
 #include "ops.hpp"
+#include "tokenizer.hpp"
 
 // ---
 // Config — all hyperparameters loaded from config.json
@@ -104,6 +105,7 @@ private:
     TransformerConfig config_;
     TransformerWeights weights_;
     KVCache kv_cache_;
+    Tokenizer tokenizer_;
 
     void load(const std::string& model_path);
 };
