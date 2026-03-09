@@ -39,7 +39,10 @@ Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N);
 
 // ---
 // Normalization
-Tensor rmsnorm(Tensor& x, Tensor& weight, float eps = 1e-6f);
+// Tensor rsqrt(Tensor&)
+
+// RMS Norm
+Tensor rmsnorm(Tensor& X, Tensor& weight, float eps = 1e-6f);
 
 // ---
 // Attention

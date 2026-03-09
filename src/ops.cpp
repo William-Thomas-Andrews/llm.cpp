@@ -56,7 +56,7 @@ Tensor matmul(Tensor& A, Tensor& B, Multiplication mult) {
     switch(mult) {
         case Multiplication::NAIVE:     return matmul_naive(A, B, M, K, N);
         case Multiplication::BLAS:      return matmul_blas(A, B, M, K, N);
-        default:                        throw std::runtime_error("Unsupported backend.");
+        default:                        throw std::runtime_error("Unsupported multiplication.");
     }
 }
 
@@ -68,8 +68,30 @@ Tensor matmul(Tensor& A, Tensor& B, Multiplication mult) {
 // ---
 // Normalization
 
-Tensor rmsnorm(Tensor& x, Tensor& weight, float eps = 1e-6f) {
-    
+Tensor rmsnorm(const Tensor& X, Tensor& weight, float eps = 1e-6f) {
+    int n = X.shape_at(X.ndim() - 1);  // last dim (number of elements per vector)
+    int num_vectors = X.numel() / n;
+
+    Tensor Y = X;
+    float* y = Y.data();
+    float* w = weight.data();
+
+    for (int i = 0; i < num_vectors; i++) {
+        float* vec = y + i*n;
+
+        // compute mean of squares
+        float ms = 0.0f;
+        for (int j = 0; j < n; j++) 
+            ms = ms + vec[j]*vec[j];
+        ms = ms / n;
+
+        // normalize and scale
+        ms = 1.0f /std::sqrt(ms + eps);
+        for (int j = 0; j < n; j++)
+            vec[j] = vec[j] * ms * w[j];
+    }
+
+    return Y;
 }
 
 //
