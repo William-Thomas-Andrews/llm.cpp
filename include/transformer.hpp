@@ -107,6 +107,8 @@ public:
     const TransformerWeights& weights() const;
     const KVCache& kv_cache() const;
 
+    const Tokenizer& tokenizer() const { return tokenizer_; }
+
 private:
     TransformerConfig config_;
     TransformerWeights weights_;
@@ -114,7 +116,7 @@ private:
     Tokenizer tokenizer_;
 
     // void load(const std::string& model_path);
-    std::array<int, Tensor::MAX_DIMS> Transformer::make_shape(int* dims, int ndim); // helper
+    std::array<int, Tensor::MAX_DIMS> make_shape(int* dims, int ndim); // helper
     void load_config(const std::string& model_path);
     void load_weights(const std::string& model_path);
     void load_model(const std::string& model_path);

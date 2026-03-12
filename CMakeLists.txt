@@ -7,10 +7,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_COMPILER /usr/bin/g++)
 
 
-
 # Add compiler optimizations, warnings, and other options
 add_compile_options(-O3 -march=native -mavx2 -fopenmp -Wall -Wextra -Wpedantic)
 find_package(OpenMP REQUIRED)
+find_package(BLAS REQUIRED)
 
 # Set output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -36,6 +36,7 @@ target_link_libraries(jarvis_lib PUBLIC sentencepiece)
 
 target_include_directories(jarvis_lib PUBLIC include)
 target_link_libraries(jarvis_lib PUBLIC OpenMP::OpenMP_CXX)
+target_link_libraries(jarvis_lib PUBLIC BLAS::BLAS)
 
 add_executable(jarvis src/main.cpp)
 target_link_libraries(jarvis PRIVATE jarvis_lib)

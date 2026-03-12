@@ -1,5 +1,6 @@
 #include "ops.hpp"
 
+#include <cblas.h>
 
 // ---
 // Matrix Multiplication
@@ -37,7 +38,9 @@ Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N) {
     Tensor C(shape, 2);  // owning, zero initialized
 
     // OpenBlas Matrix Multiply Operation
+    // cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, 1.0f, A.data(), K, B.data(), K, 0.0, C.data(), N);
     cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, 1.0, A.data(), K, B.data(), N, 0.0, C.data(), N);
+
 
     return C;
 }
@@ -45,13 +48,18 @@ Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N) {
 // A: [M, K], B: [K, N], C: [M, N]
 Tensor matmul(Tensor& A, Tensor& B, LIB mult) {
     // A must be [M, K], B must be [K, N]
-    if (A.ndim() != 2 || B.ndim() != 2) throw std::runtime_error("Error: dimensions incorrect.");
+    if (A.ndim() != 2 || B.ndim() != 2) {
+        std::cout << A.ndim() << " and " << B.ndim() << std::endl;
+        throw std::runtime_error("Error: dimensions incorrect.");
+    }
     if (A.shape_at(1) != B.shape_at(0)) throw std::runtime_error("Error: columns of A do not match rows of B.");
     if (!A.is_contiguous() || !B.is_contiguous()) throw std::runtime_error("Error: data not contiguous.");
 
     int M = A.shape_at(0);
     int K = A.shape_at(1);
-    int N = B.shape_at(1);
+    int N = B.shape_at(0);
+
+    if (K != B.shape_at(1)) throw std::runtime_error("Error: dimension mismatch.");
 
     switch(mult) {
         case LIB::NAIVE:     return matmul_naive(A, B, M, K, N);
@@ -61,22 +69,22 @@ Tensor matmul(Tensor& A, Tensor& B, LIB mult) {
 }
 
 // A: [M, K], B: [K, N], C: [M, N]
-Tensor matmul(Tensor& A, Tensor B, LIB mult) {
-    // A must be [M, K], B must be [K, N]
-    if (A.ndim() != 2 || B.ndim() != 2) throw std::runtime_error("Error: dimensions incorrect.");
-    if (A.shape_at(1) != B.shape_at(0)) throw std::runtime_error("Error: columns of A do not match rows of B.");
-    if (!A.is_contiguous() || !B.is_contiguous()) throw std::runtime_error("Error: data not contiguous.");
+// Tensor matmul(Tensor& A, Tensor B, LIB mult) {
+//     // A must be [M, K], B must be [K, N]
+//     if (A.ndim() != 2 || B.ndim() != 2) throw std::runtime_error("Error: dimensions incorrect.");
+//     if (A.shape_at(1) != B.shape_at(0)) throw std::runtime_error("Error: columns of A do not match rows of B.");
+//     if (!A.is_contiguous() || !B.is_contiguous()) throw std::runtime_error("Error: data not contiguous.");
 
-    int M = A.shape_at(0);
-    int K = A.shape_at(1);
-    int N = B.shape_at(1);
+//     int M = A.shape_at(0);
+//     int K = A.shape_at(1);
+//     int N = B.shape_at(1);
 
-    switch(mult) {
-        case LIB::NAIVE:     return matmul_naive(A, B, M, K, N);
-        case LIB::BLAS:      return matmul_blas(A, B, M, K, N);
-        default:                        throw std::runtime_error("Unsupported multiplication.");
-    }
-}
+//     switch(mult) {
+//         case LIB::NAIVE:     return matmul_naive(A, B, M, K, N);
+//         case LIB::BLAS:      return matmul_blas(A, B, M, K, N);
+//         default:                        throw std::runtime_error("Unsupported multiplication.");
+//     }
+// }
 
 //
 // ---
@@ -86,7 +94,7 @@ Tensor matmul(Tensor& A, Tensor B, LIB mult) {
 // ---
 // Normalization
 
-Tensor rmsnorm(const Tensor& X, Tensor& weight, float eps = 1e-6f) {
+Tensor rmsnorm(Tensor& X, Tensor& weight, float eps) {
     int n = X.shape_at(X.ndim() - 1);  // last dim (number of elements per vector)
     int num_vectors = X.numel() / n;
 
@@ -189,7 +197,7 @@ Tensor silu(const Tensor& x) {
     Tensor Y = x;
     float* y = Y.data();
 
-    for (int i = 0; i < Y.numel(); i++)
+    for (size_t i = 0; i < Y.numel(); i++)
         y[i] = y[i] * (1.0f / (1.0f + std::exp(-y[i])));
 
     return Y;
@@ -202,7 +210,7 @@ Tensor swiglu(Tensor& gate, Tensor& X) {
     float* y = Y.data();
     float* x = X.data();
 
-    for (int i = 0; i < Y.numel(); i++) 
+    for (size_t i = 0; i < Y.numel(); i++) 
         y[i] = y[i] * x[i];
 
     return Y;
@@ -219,40 +227,25 @@ Tensor swiglu(Tensor& gate, Tensor& X) {
 // Elementwise add
 Tensor add(Tensor& A, Tensor& B) {
     if (A.numel() != B.numel()) throw std::runtime_error("Error: Tensor number of elements each do not match for elementwise addition.");
-    size_t n = A.numel();
-    // Allocate memory
-    size_t aligned_nbytes = (A.nbytes() + A.BYTE_ALIGNMENT - 1) & ~(A.BYTE_ALIGNMENT - 1);
-    void* raw_ptr = std::aligned_alloc(A.BYTE_ALIGNMENT, aligned_nbytes);
-    if (raw_ptr == nullptr) throw std::domain_error("Data array allocation failed.");
-    // Set raw pointer in data_
-    float* c = static_cast<float*>(raw_ptr);
+    Tensor C(A.shape_array(), A.ndim()); // owning, zero initialized
     float* a = A.data();
     float* b = B.data();
-    // 1. Copy a to c: c = a
-    cblas_scopy(n, b, 1, c, 1);
-    // 2. Add b to c: c = 1.0 * b + c (which is now a)
-    cblas_saxpy(n, 1, b, 1, c, 1);
-    Tensor view(c, n, A.shape_array(), A.ndim());
-    return view;
+    float* c = C.data();
+    cblas_scopy(A.numel(), a, 1, c, 1); // c = a
+    cblas_saxpy(A.numel(), 1.0f, b, 1, c, 1); // c = 1.0*b + c
+    return C;
 }
 
 // Elementwise multiply
 Tensor mul(Tensor& A, Tensor& B) {
     if (A.numel() != B.numel()) throw std::runtime_error("Error: Tensor number of elements each do not match for elementwise addition.");
-    size_t n = A.numel();
-    // Allocate memory
-    size_t aligned_nbytes = (A.nbytes() + A.BYTE_ALIGNMENT - 1) & ~(A.BYTE_ALIGNMENT - 1);
-    void* raw_ptr = std::aligned_alloc(A.BYTE_ALIGNMENT, aligned_nbytes);
-    if (raw_ptr == nullptr) throw std::domain_error("Data array allocation failed.");
-    // Set raw pointer in data_
-    float* c = static_cast<float*>(raw_ptr);
+    Tensor C(A.shape_array(), A.ndim()); // owning, zero initialized
     float* a = A.data();
     float* b = B.data();
-    // Standard loop, compiler auto optimized
-    for (int i = 0; i < n; i++)
+    float* c = C.data();
+    for (size_t i = 0; i < C.numel(); i++) 
         c[i] = a[i] * b[i];
-    Tensor view(c, n, A.shape_array(), A.ndim());
-    return view;
+    return C;
 }
 
 //

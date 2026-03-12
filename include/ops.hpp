@@ -5,7 +5,7 @@
 
 // ---
 // Backend selector
-// Extensible: add CUDA, OpenCL, Metal backends later
+// Extensible: add CUDA, OpenCL, and other backends later
 
 enum class Backend {
     NAIVE,

@@ -1,3 +1,3 @@
 #!/bin/bash
 
-./build/bin/jarvis
+./build/bin/jarvis models/tinyllama
