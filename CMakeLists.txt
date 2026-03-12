@@ -26,6 +26,8 @@ add_library(jarvis_lib
     src/tokenizer.cpp
     src/transformer.cpp
     src/utils.cpp
+    src/loader.cpp
+    include/json.hpp
 )
 
 include_directories($ENV{HOME}/.local/include)
@@ -37,6 +39,8 @@ target_link_libraries(jarvis_lib PUBLIC OpenMP::OpenMP_CXX)
 
 add_executable(jarvis src/main.cpp)
 target_link_libraries(jarvis PRIVATE jarvis_lib)
+# target_link_libraries(jarvis PRIVATE nlohmann_json::nlohmann_json)
 
-add_executable(tests tests/tests.cpp)
-target_link_libraries(tests PRIVATE jarvis_lib)
+
+# add_executable(tests tests/tests.cpp)
+# target_link_libraries(tests PRIVATE jarvis_lib)

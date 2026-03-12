@@ -19,6 +19,7 @@ class Tensor {
         static constexpr int MAX_DIMS = 8;                       // How many dims we can possibly hold (transformers never need more than this)
         
         // Constructors
+        Tensor();
         Tensor(std::array<int, MAX_DIMS> shape, int ndim); // Default constructor
         Tensor(float* data, size_t n, std::array<int, MAX_DIMS> shape, int ndim); // Default constructor (view constructor)
         Tensor(const Tensor& other); // Copy constructor
@@ -47,6 +48,8 @@ class Tensor {
         Tensor reshape(std::array<int, MAX_DIMS> new_shape, int new_ndim) const;
         Tensor slice(int dim, int start, int end) const;
         Tensor transpose(int dim_a, int dim_b) const;
+        Tensor transpose() const;
+        void scale(float scalar);
 
         // Utility
         void fill(float value);

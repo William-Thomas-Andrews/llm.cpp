@@ -13,7 +13,7 @@ enum class Backend {
     CUDA,   // future
 };
 
-enum class Multiplication {
+enum class LIB {
     NAIVE,
     BLAS,
 };
@@ -23,13 +23,13 @@ enum class Multiplication {
 // Matrix multiplication
 // C = A @ B
 // A: [M, K], B: [K, N], C: [M, N]
-Tensor matmul(Tensor& A, Tensor& B, Multiplication mult);
+Tensor matmul(Tensor& A, Tensor& B, LIB mult);
 
 // ---
 // Naive Matrix multiplication
 // C = A @ B
 // A: [M, K], B: [K, N], C: [M, N]
-Tensor matmul_naive(Tensor& A, Tensor& B, int M, int K, int N);
+Tensor matmul_naive(Tensor& A, LIB& B, int M, int K, int N);
 
 // ---
 // Accelerated Matrix multiplication (OpenBlas)
@@ -45,7 +45,7 @@ Tensor rmsnorm(Tensor& X, Tensor& weight, float eps = 1e-6f);
 
 // ---
 // Attention
-Tensor softmax(const Tensor& X, int dim);
+Tensor softmax(Tensor& X, int dim);
 
 // Apply rotary positional embeddings to a single vector
 void rope_vector(float* vec, int head_dim, int position);

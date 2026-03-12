@@ -6,10 +6,14 @@
 #include "tensor.hpp"
 #include "ops.hpp"
 #include "tokenizer.hpp"
+#include "json.hpp"
+#include <fstream>
+#include <cstring>
+#include <filesystem>
+#include <string>
 
 // ---
 // Config — all hyperparameters loaded from config.json
-
 struct TransformerConfig {
     int d_model;        // hidden dimension (2048 for TinyLLaMA)
     int num_heads;      // attention heads (32)
@@ -24,7 +28,6 @@ struct TransformerConfig {
 
 // ---
 // Weights — all model tensors loaded from model.bin
-
 struct TransformerWeights {
     // embedding
     Tensor token_embedding;     // [vocab_size, d_model]
@@ -51,55 +54,58 @@ struct TransformerWeights {
 
 // ---
 // KV Cache — stores K and V tensors for each layer
-
 struct KVCache {
     // one entry per layer
     std::vector<Tensor> k_cache;    // [num_layers, max_seq_len, kv_dim]
     std::vector<Tensor> v_cache;    // [num_layers, max_seq_len, kv_dim]
     int current_pos = 0;            // how many tokens have been processed
-
+    KVCache();
     KVCache(const TransformerConfig& config);
     void clear();
 };
 
 // ---
 // Attention Layer
-
 struct AttentionLayer {
-    Tensor forward(const Tensor& x, int pos,
-                   const TransformerWeights& w,
-                   KVCache& kv_cache,
-                   int layer_idx,
-                   const TransformerConfig& config);
+    float dot_product(float* ptr_1, float* ptr_2, int head_dim);
+    void softmax(std::vector<float>& scores);
+    Tensor forward(Tensor& X, int pos,
+                    TransformerWeights& W,
+                    KVCache& kv_cache,
+                    int layer_idx,
+                    const TransformerConfig& config);
 };
 
 // ---
-// FFN Layer
-
+// FFN (Feed Forward Network) Layer
 struct FFNLayer {
-    Tensor forward(const Tensor& x,
-                   const TransformerWeights& w,
-                   int layer_idx,
-                   const TransformerConfig& config);
+    Tensor forward(Tensor& X,
+                    TransformerWeights& W,
+                    int layer_idx,
+                    const TransformerConfig& config);
 };
 
 // ---
 // Full Model
-
 class Transformer {
 public:
     Transformer(const std::string& model_path);
 
+    // embed token
+    Tensor embed(int token_id);
+
     // run forward pass, return logits over vocabulary
-    Tensor forward(const std::vector<int>& token_ids, int pos);
+    Tensor forward(int token_id, int pos);
 
     // greedy sample — just argmax
-    float greedy_sample(Tensor& logits);
+    int greedy_sample(Tensor& logits);
 
     // temperature sample
-    int sample(const Tensor& logits, float temperature = 1.0f);
+    int sample(Tensor& logits, float temperature);
 
     const TransformerConfig& config() const;
+    const TransformerWeights& weights() const;
+    const KVCache& kv_cache() const;
 
 private:
     TransformerConfig config_;
@@ -107,5 +113,9 @@ private:
     KVCache kv_cache_;
     Tokenizer tokenizer_;
 
-    void load(const std::string& model_path);
+    // void load(const std::string& model_path);
+    std::array<int, Tensor::MAX_DIMS> Transformer::make_shape(int* dims, int ndim); // helper
+    void load_config(const std::string& model_path);
+    void load_weights(const std::string& model_path);
+    void load_model(const std::string& model_path);
 };

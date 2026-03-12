@@ -4,6 +4,11 @@
 // ---
 // Constructors
 
+Tensor::Tensor() {
+    owned_data_ = nullptr;
+    data_ = nullptr;
+}
+
 Tensor::Tensor(std::array<int, MAX_DIMS> shape, int ndim) : ndim_(ndim) {
     shape_ = shape;
     size_t nelements = 1;
@@ -278,6 +283,19 @@ Tensor Tensor::transpose(int dim_a, int dim_b) const {
     std::swap(view.strides_[dim_a], view.strides_[dim_b]);
     std::swap(view.shape_[dim_a], view.shape_[dim_b]);
     return view;
+}
+
+Tensor Tensor::transpose() const {
+    int dim_a = 0; int dim_b = 1;
+    Tensor view(data_, nelements_, shape_, ndim_);  // non-owning view
+    std::swap(view.strides_[dim_a], view.strides_[dim_b]);
+    std::swap(view.shape_[dim_a], view.shape_[dim_b]);
+    return view;
+}
+
+void Tensor::scale(float scalar) {
+    for (size_t i = 0; i < nelements_; i++) 
+        data_[i] *= scalar;
 }
 
 //
