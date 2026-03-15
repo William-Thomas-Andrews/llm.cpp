@@ -185,23 +185,40 @@ int Transformer::greedy_sample(Tensor& logits) {
     return std::max_element(arr, arr + logits.numel()) - arr;
 }
 
-// temperature sample
-int Transformer::sample(Tensor& logits, float temperature) {
+// temperature + top-p (nucleus) sample
+int Transformer::sample(Tensor& logits, float temperature, float top_p) {
     logits.scale(1.0f / temperature);
-    logits.softmax();  // convert to probabilities — now sums to 1
+    logits.softmax();
     float* probs = logits.data();
+    int n = logits.numel();
 
+    // Build sorted index list by descending probability
+    std::vector<int> indices(n);
+    std::iota(indices.begin(), indices.end(), 0);
+    std::sort(indices.begin(), indices.end(), [&](int a, int b) {
+        return probs[a] > probs[b];
+    });
+
+    // Keep only the nucleus (top tokens summing to top_p), renormalize
+    float cumsum = 0.0f;
+    int cutoff = n;
+    for (int i = 0; i < n; i++) {
+        cumsum += probs[indices[i]];
+        if (cumsum >= top_p) { cutoff = i + 1; break; }
+    }
+
+    // Sample from the nucleus
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+    std::uniform_real_distribution<float> dis(0.0f, cumsum);
     float r = dis(gen);
 
-    float cumulative_sum = 0.0f;
-    for (size_t i = 0; i < logits.numel(); i++) {
-        cumulative_sum += probs[i];  // accumulate first, then check
-        if (r < cumulative_sum) return i;
+    float running = 0.0f;
+    for (int i = 0; i < cutoff; i++) {
+        running += probs[indices[i]];
+        if (r < running) return indices[i];
     }
-    return logits.numel() - 1;  // fallback for fp rounding
+    return indices[cutoff - 1];
 }
 
 const TransformerConfig& Transformer::config() const {

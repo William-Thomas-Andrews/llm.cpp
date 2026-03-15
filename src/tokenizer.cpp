@@ -25,10 +25,27 @@ std::vector<int> Tokenizer::encode(const std::string& input_text) const {
 
 // decode a single token id to string
 std::string Tokenizer::decode(int token_id) const {
-    std::string text;
-    processor_.Decode(std::vector<int>{token_id}, &text);
-    // return id_to_token_.find_val(token_id); // uses custom hashmap for fast lookup
-    return text;
+    std::string piece = processor_.IdToPiece(token_id);
+
+    // Handle <0xNN> byte tokens (e.g. <0x0A> = newline, <0x09> = tab)
+    if (piece.size() == 6 && piece[0] == '<' && piece[1] == '0' && piece[2] == 'x' && piece[5] == '>') {
+        unsigned char byte_val = (unsigned char)std::stoi(piece.substr(3, 2), nullptr, 16);
+        return std::string(1, (char)byte_val);
+    }
+
+    // Replace all ▁ (U+2581, UTF-8: e2 96 81) with spaces
+    std::string result;
+    for (size_t i = 0; i < piece.size(); ) {
+        if (i + 2 < piece.size() && (unsigned char)piece[i]   == 0xe2
+                                 && (unsigned char)piece[i+1] == 0x96
+                                 && (unsigned char)piece[i+2] == 0x81) {
+            result += ' ';
+            i += 3;
+        } else {
+            result += piece[i++];
+        }
+    }
+    return result;
 }
 
 // decode a sequence of token ids to string
