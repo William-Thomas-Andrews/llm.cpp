@@ -32,12 +32,12 @@ int main(int argc, char* argv[]) {
     // process prompt tokens first
     for (size_t i = 0; i < input_ids.size() - 1; i++) 
         transformer.forward(input_ids[i], pos++);
-    
+
     // generate
     next_id = input_ids.back(); // get last element
     for (int i = 0; i < max_tokens; i++) {
         Tensor logits = transformer.forward(next_id, pos++);
-        next_id = transformer.greedy_sample(logits);
+        next_id = transformer.sample(logits, 1.0f);
         if (next_id == transformer.tokenizer().eos_id()) break;
         std::cout << transformer.tokenizer().decode(next_id);
         std::cout.flush();

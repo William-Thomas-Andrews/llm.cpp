@@ -298,6 +298,20 @@ void Tensor::scale(float scalar) {
         data_[i] *= scalar;
 }
 
+void Tensor::softmax() {
+    if (!is_contiguous()) throw std::runtime_error("softmax requires contiguous tensor");
+
+    float max_val = *std::max_element(data_, data_ + nelements_);
+    float summation = 0.0f;
+    for (int i = 0; i < nelements_; i++) {
+        data_[i]= std::exp(data_[i] - max_val);
+        summation += data_[i];
+    }
+    summation = 1 / summation;
+    for (int j = 0; j < nelements_; j++)
+        data_[j] = data_[j] * summation;
+}
+
 //
 // ---
 

@@ -186,9 +186,22 @@ int Transformer::greedy_sample(Tensor& logits) {
 }
 
 // temperature sample
-int Transformer::sample(Tensor& logits, float temperature = 1.0f) {
-    // TODO: implement temperature sample
-    return greedy_sample(logits);
+int Transformer::sample(Tensor& logits, float temperature) {
+    logits.scale(1.0f / temperature);
+    logits.softmax();  // convert to probabilities — now sums to 1
+    float* probs = logits.data();
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+    float r = dis(gen);
+
+    float cumulative_sum = 0.0f;
+    for (size_t i = 0; i < logits.numel(); i++) {
+        cumulative_sum += probs[i];  // accumulate first, then check
+        if (r < cumulative_sum) return i;
+    }
+    return logits.numel() - 1;  // fallback for fp rounding
 }
 
 const TransformerConfig& Transformer::config() const {

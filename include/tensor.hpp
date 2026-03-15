@@ -8,6 +8,7 @@
 #include <exception>
 #include <cstring>
 #include <cblas.h>
+#include <cmath>
 
 
 
@@ -50,6 +51,7 @@ class Tensor {
         Tensor transpose(int dim_a, int dim_b) const;
         Tensor transpose() const;
         void scale(float scalar);
+        void softmax();
 
         // Utility
         void fill(float value);

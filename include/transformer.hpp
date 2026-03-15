@@ -11,6 +11,7 @@
 #include <cstring>
 #include <filesystem>
 #include <string>
+#include <random>
 
 // ---
 // Config — all hyperparameters loaded from config.json
