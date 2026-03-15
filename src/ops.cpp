@@ -31,39 +31,41 @@ Tensor matmul_naive(Tensor& A, Tensor& B, int M, int K, int N) {
     return C;
 }
 
-Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N) {
+Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N, bool transB) {
     std::array<int, Tensor::MAX_DIMS> shape = {};
     shape[0] = M;
     shape[1] = N;
     Tensor C(shape, 2);  // owning, zero initialized
 
     // OpenBlas Matrix Multiply Operation
-    // cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, 1.0f, A.data(), K, B.data(), K, 0.0, C.data(), N);
-    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, 1.0, A.data(), K, B.data(), N, 0.0, C.data(), N);
-
+    if (transB)
+        // B is [N, K] stored row-major; ldb = K (columns of B as stored)
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, 1.0, A.data(), K, B.data(), K, 0.0, C.data(), N);
+    else
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, 1.0, A.data(), K, B.data(), N, 0.0, C.data(), N);
 
     return C;
 }
 
 // A: [M, K], B: [K, N], C: [M, N]
-Tensor matmul(Tensor& A, Tensor& B, LIB mult) {
+Tensor matmul(Tensor& A, Tensor& B, LIB mult, bool transB) {
     // A must be [M, K], B must be [K, N]
     if (A.ndim() != 2 || B.ndim() != 2) {
         std::cout << A.ndim() << " and " << B.ndim() << std::endl;
-        throw std::runtime_error("Error: dimensions incorrect.");
+        throw std::runtime_error("matmul() Error: dimensions incorrect.");
     }
-    if (A.shape_at(1) != B.shape_at(0)) throw std::runtime_error("Error: columns of A do not match rows of B.");
-    if (!A.is_contiguous() || !B.is_contiguous()) throw std::runtime_error("Error: data not contiguous.");
+    // When transB, B is [N, K]; inner dim K is at B.shape_at(1). Otherwise B is [K, N].
+    if (!transB && A.shape_at(1) != B.shape_at(0)) throw std::runtime_error("matmul() Error: columns of A do not match rows of B.");
+    if ( transB && A.shape_at(1) != B.shape_at(1)) throw std::runtime_error("matmul() Error: columns of A do not match columns of B.");
+    if (!A.is_contiguous() || !B.is_contiguous()) throw std::runtime_error("matmul() Error: data not contiguous.");
 
     int M = A.shape_at(0);
     int K = A.shape_at(1);
-    int N = B.shape_at(0);
-
-    if (K != B.shape_at(1)) throw std::runtime_error("Error: dimension mismatch.");
+    int N = transB ? B.shape_at(0) : B.shape_at(1);
 
     switch(mult) {
         case LIB::NAIVE:     return matmul_naive(A, B, M, K, N);
-        case LIB::BLAS:      return matmul_blas(A, B, M, K, N);
+        case LIB::BLAS:      return matmul_blas(A, B, M, K, N, transB);
         default:                        throw std::runtime_error("Unsupported multiplication.");
     }
 }

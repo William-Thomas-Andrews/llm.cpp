@@ -58,10 +58,10 @@ Tensor AttentionLayer::forward(Tensor& X, int pos, TransformerWeights& W, KVCach
     // Tensor W_k_T = W.wk[layer_idx].transpose();
     // Tensor W_v_T = W.wv[layer_idx].transpose();    
 
-    // 1. project X into Q, K, V (let BLAS transpose internally)
-    Tensor Q = matmul(X, W.wq[layer_idx], LIB::BLAS);
-    Tensor K = matmul(X, W.wk[layer_idx], LIB::BLAS);
-    Tensor V = matmul(X, W.wv[layer_idx], LIB::BLAS);
+    // 1. project X into Q, K, V — weights are [out, in] (HF format), so transB=true
+    Tensor Q = matmul(X, W.wq[layer_idx], LIB::BLAS, true);
+    Tensor K = matmul(X, W.wk[layer_idx], LIB::BLAS, true);
+    Tensor V = matmul(X, W.wv[layer_idx], LIB::BLAS, true);
 
     // 2. apply RoPE to Q and K
     float* q_ptr = Q.data();
@@ -78,10 +78,11 @@ Tensor AttentionLayer::forward(Tensor& X, int pos, TransformerWeights& W, KVCach
     memcpy(v_cache_ptr + pos * kv_dim, V.data(), kv_dim * sizeof(float));
 
     // 4. per-head attention
-    // output accumulator [d_model]
+    // output accumulator [1, d_model]
     std::array<int, Tensor::MAX_DIMS> out_shape = {};
-    out_shape[0] = config.d_model;
-    Tensor output(out_shape, 1);  // zero initialized
+    out_shape[0] = 1;
+    out_shape[1] = config.d_model;
+    Tensor output(out_shape, 2);  // zero initialized
 
     // scores buffer [pos+1] — reused each head
     std::vector<float> scores(pos + 1);
@@ -113,8 +114,8 @@ Tensor AttentionLayer::forward(Tensor& X, int pos, TransformerWeights& W, KVCach
     }
 
 
-    // 5. output projection
-    Tensor result = matmul(output, W.wo[layer_idx], LIB::BLAS);
+    // 5. output projection — wo is [out, in] (HF format), transB=true
+    Tensor result = matmul(output, W.wo[layer_idx], LIB::BLAS, true);
     return result;
 }
 
@@ -122,17 +123,17 @@ Tensor AttentionLayer::forward(Tensor& X, int pos, TransformerWeights& W, KVCach
 // FFN (Feed Forward Network) Layer
 Tensor FFNLayer::forward(Tensor& X, TransformerWeights& W, int layer_idx, const TransformerConfig& config) {
 
-    // gate = silu(X @ W_gate.T)
-    Tensor gate = silu(matmul(X, W.w_gate[layer_idx], LIB::BLAS));
+    // gate = silu(X @ W_gate.T) — weights are [out, in] (HF format), so transB=true
+    Tensor gate = silu(matmul(X, W.w_gate[layer_idx], LIB::BLAS, true));
 
     // up = X @ W_up.T
-    Tensor up = matmul(X, W.w_up[layer_idx], LIB::BLAS);
+    Tensor up = matmul(X, W.w_up[layer_idx], LIB::BLAS, true);
 
     // hidden = gate * up
     Tensor hidden = mul(gate, up); // completion of swiglu
 
     // out = hidden @ W_down.T
-    return matmul(hidden, W.w_down[layer_idx], LIB::BLAS);
+    return matmul(hidden, W.w_down[layer_idx], LIB::BLAS, true);
 }
 
 // ---
@@ -144,11 +145,12 @@ Transformer::Transformer(const std::string& model_path) : tokenizer_(model_path 
 
 Tensor Transformer::embed(int token_id) {
     std::array<int, Tensor::MAX_DIMS> shape = {};
-    shape[0] = config_.d_model;
+    shape[0] = 1;
+    shape[1] = config_.d_model;
 
     // non-owning view into row token_id of the embedding table
     float* row = weights_.token_embedding.data() + (token_id * config_.d_model);
-    return Tensor(row, config_.d_model, shape, 1);
+    return Tensor(row, config_.d_model, shape, 2);
 }
 
 // run forward pass, return logits over vocabulary
@@ -170,9 +172,11 @@ Tensor Transformer::forward(int token_id, int pos) {
 
     X = rmsnorm(X, weights_.final_norm);
     
-    Tensor lm_head_T = weights_.lm_head.transpose();
+    // Tensor lm_head_T = weights_.lm_head.transpose();
     // logits
-    return matmul(X, lm_head_T, LIB::BLAS);
+    // return matmul(X, lm_head_T, LIB::BLAS, true);
+    // lm_head is [vocab_size, d_model]; pass directly with transB=true
+    return matmul(X, weights_.lm_head, LIB::BLAS, true);
 }
 
 // greedy sample — just argmax

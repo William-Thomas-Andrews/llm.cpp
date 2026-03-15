@@ -23,7 +23,7 @@ enum class LIB {
 // Matrix multiplication
 // C = A @ B
 // A: [M, K], B: [K, N], C: [M, N]
-Tensor matmul(Tensor& A, Tensor& B, LIB mult);
+Tensor matmul(Tensor& A, Tensor& B, LIB mult, bool transB = false);
 
 // ---
 // Naive Matrix multiplication
@@ -35,7 +35,7 @@ Tensor matmul_naive(Tensor& A, LIB& B, int M, int K, int N);
 // Accelerated Matrix multiplication (OpenBlas)
 // C = A @ B
 // A: [M, K], B: [K, N], C: [M, N]
-Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N);
+Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N, bool transB = false);
 
 // ---
 // Normalization
