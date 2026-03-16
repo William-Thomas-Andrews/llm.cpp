@@ -23,18 +23,18 @@ Tensor::Tensor(std::array<int, MAX_DIMS> shape, int ndim) : ndim_(ndim) {
     void* raw_ptr = std::aligned_alloc(BYTE_ALIGNMENT, aligned_nbytes);
     if (raw_ptr == nullptr) throw std::domain_error("Data array allocation failed.");
     // Set raw pointer in data_
-    data_ = static_cast<float*>(raw_ptr);
+    data_ = static_cast<int8_t*>(raw_ptr);
     // Set all values to 0.0
     std::memset(data_, 0, nbytes_);
     // Set ownership to unique ptr
-    owned_data_= std::unique_ptr<float[]>(data_);
+    owned_data_= std::unique_ptr<int8_t[]>(data_);
     // Create strides
     strides_[ndim_ - 1] = BYTES_PER_ELEMENT;
     for (int i = ndim_ - 2; i >= 0; i--)
         strides_[i] = strides_[i + 1] * shape_[i + 1];
 }
 
-Tensor::Tensor(float *data, size_t n, std::array<int, MAX_DIMS> shape, int ndim) : ndim_(ndim) {
+Tensor::Tensor(int8_t *data, size_t n, std::array<int, MAX_DIMS> shape, int ndim) : ndim_(ndim) {
     shape_ = shape;
     size_t nelements = 1;
     // Find number of elements
@@ -48,7 +48,7 @@ Tensor::Tensor(float *data, size_t n, std::array<int, MAX_DIMS> shape, int ndim)
     // Set pointer in data_
     data_ = data;
     // Set ownership to unique ptr in owned_data
-    // owned_data_= std::unique_ptr<float[]>(data_);
+    // owned_data_= std::unique_ptr<int8_t[]>(data_);
     // Create strides
     strides_[ndim_ - 1] = BYTES_PER_ELEMENT;
     for (int i = ndim_ - 2; i >= 0; i--)
@@ -69,11 +69,11 @@ Tensor::Tensor(const Tensor &other) {
     void* raw_ptr = std::aligned_alloc(BYTE_ALIGNMENT, aligned_nbytes);
     if (raw_ptr == nullptr) throw std::domain_error("Data array allocation failed.");
     // Set raw pointer in data_
-    data_ = static_cast<float*>(raw_ptr);
+    data_ = static_cast<int8_t*>(raw_ptr);
     // Copy data from src to dst
     memcpy(data_, other.data_, nbytes_);
     // Set ownership to unique ptr in owned_data
-    owned_data_= std::unique_ptr<float[]>(data_);
+    owned_data_= std::unique_ptr<int8_t[]>(data_);
     // Create strides
     strides_[ndim_ - 1] = BYTES_PER_ELEMENT;
     for (int i = ndim_ - 2; i >= 0; i--)
@@ -115,11 +115,11 @@ Tensor& Tensor::operator=(const Tensor& other) {
     void* raw_ptr = std::aligned_alloc(BYTE_ALIGNMENT, aligned_nbytes);
     if (raw_ptr == nullptr) throw std::domain_error("Data array allocation failed.");
     // Set raw pointer in data_
-    data_ = static_cast<float*>(raw_ptr);
+    data_ = static_cast<int8_t*>(raw_ptr);
     // Copy data from src to dst
     memcpy(data_, other.data_, nbytes_);
     // Set ownership to unique ptr in owned_data
-    owned_data_= std::unique_ptr<float[]>(data_);
+    owned_data_= std::unique_ptr<int8_t[]>(data_);
     // Create strides
     strides_[ndim_ - 1] = BYTES_PER_ELEMENT;
     for (int i = ndim_ - 2; i >= 0; i--)
@@ -196,11 +196,11 @@ size_t Tensor::nbytes() const {
 }
 
 int Tensor::dtype_size() {
-    return BYTES_PER_ELEMENT; // float is 4 bytes
+    return BYTES_PER_ELEMENT; // int8_t is 2 bytes
 }
 
 bool Tensor::is_contiguous() const {
-    size_t expected = BYTES_PER_ELEMENT;  // sizeof the element (float is 4 bytes)
+    size_t expected = BYTES_PER_ELEMENT;  // sizeof the element (float is 2 bytes)
     for (int i = ndim_ - 1; i >= 0; i--) {
         if (strides_[i] != expected) return false;
         expected *= shape_[i];
@@ -216,26 +216,26 @@ bool Tensor::is_contiguous() const {
 // ---
 // Data access
 
-float* Tensor::data() {
+int8_t* Tensor::data() {
     return data_;
 }
 
-// const float* Tensor::data() const {
+// const int8_t* Tensor::data() const {
 //     return data_;
 // }
 
-float& Tensor::at(std::array<int, MAX_DIMS> indices) {
+int8_t& Tensor::at(std::array<int, MAX_DIMS> indices) {
     char* ptr = reinterpret_cast<char*>(data_);
     for (int i = 0; i < ndim_; i++)
         ptr += strides_[i] * indices[i];
-    return *reinterpret_cast<float*>(ptr);
+    return *reinterpret_cast<int8_t*>(ptr);
 }
 
-const float& Tensor::at(std::array<int, MAX_DIMS> indices) const {
+const int8_t& Tensor::at(std::array<int, MAX_DIMS> indices) const {
     char* ptr = reinterpret_cast<char*>(data_);
     for (int i = 0; i < ndim_; i++)
         ptr += strides_[i] * indices[i];
-    return *reinterpret_cast<float*>(ptr);
+    return *reinterpret_cast<int8_t*>(ptr);
 }
 
 //
@@ -267,7 +267,7 @@ Tensor Tensor::slice(int dim, int start, int end) const {
     // advance the data pointer to the start index
     char* ptr = reinterpret_cast<char*>(view.data_);
     ptr += start * strides_[dim];
-    view.data_ = reinterpret_cast<float*>(ptr);
+    view.data_ = reinterpret_cast<int8_t*>(ptr);
 
     // shrink the shape along the sliced dimension
     view.shape_[dim] = end - start;
@@ -293,7 +293,7 @@ Tensor Tensor::transpose() const {
     return view;
 }
 
-void Tensor::scale(float scalar) {
+void Tensor::scale(int8_t scalar) {
     for (size_t i = 0; i < nelements_; i++) 
         data_[i] *= scalar;
 }
@@ -301,8 +301,8 @@ void Tensor::scale(float scalar) {
 void Tensor::softmax() {
     if (!is_contiguous()) throw std::runtime_error("softmax requires contiguous tensor");
 
-    float max_val = *std::max_element(data_, data_ + nelements_);
-    float summation = 0.0f;
+    int8_t max_val = *std::max_element(data_, data_ + nelements_);
+    int8_t summation = 0.0f;
     for (int i = 0; i < nelements_; i++) {
         data_[i]= std::exp(data_[i] - max_val);
         summation += data_[i];
@@ -320,7 +320,7 @@ void Tensor::softmax() {
 // ---
 // Utility
 
-void Tensor::fill(float value) {
+void Tensor::fill(int8_t value) {
     std::fill(data_, data_ + nelements_, value);
 }
 

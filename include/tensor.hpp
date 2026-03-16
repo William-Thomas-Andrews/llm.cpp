@@ -10,19 +10,17 @@
 #include <cblas.h>
 #include <cmath>
 
-
-
 class Tensor {
 
     public:
-        static constexpr int BYTES_PER_ELEMENT = 4;
-        static constexpr int BYTE_ALIGNMENT = 32;
-        static constexpr int MAX_DIMS = 8;                       // How many dims we can possibly hold (transformers never need more than this)
+        static constexpr int BYTES_PER_ELEMENT = 1;     // Bytes per int8_t
+        static constexpr int BYTE_ALIGNMENT = 8;       // Bits per int8_t
+        static constexpr int MAX_DIMS = 8;              // How many dims we can possibly hold (transformers never need more than this)
         
         // Constructors
         Tensor();
         Tensor(std::array<int, MAX_DIMS> shape, int ndim); // Default constructor
-        Tensor(float* data, size_t n, std::array<int, MAX_DIMS> shape, int ndim); // Default constructor (view constructor)
+        Tensor(int8_t* data, size_t n, std::array<int, MAX_DIMS> shape, int ndim); // Default constructor (view constructor)
         Tensor(const Tensor& other); // Copy constructor
         Tensor(Tensor&& other) noexcept; // Move constructor
         Tensor& operator=(const Tensor& other); // Copy assignment operator
@@ -40,26 +38,26 @@ class Tensor {
         bool is_contiguous() const;
 
         // Data access
-        float* data();
-        // const float* data() const;
-        float& at(std::array<int, MAX_DIMS> indices);
-        const float& at(std::array<int, MAX_DIMS> indices) const;
+        int8_t* data();
+        // const int8_t* data() const;
+        int8_t& at(std::array<int, MAX_DIMS> indices);
+        const int8_t& at(std::array<int, MAX_DIMS> indices) const;
 
         // View operations
         Tensor reshape(std::array<int, MAX_DIMS> new_shape, int new_ndim) const;
         Tensor slice(int dim, int start, int end) const;
         Tensor transpose(int dim_a, int dim_b) const;
         Tensor transpose() const;
-        void scale(float scalar);
+        void scale(int8_t scalar);
         void softmax();
 
         // Utility
-        void fill(float value);
+        void fill(int8_t value);
         void print() const;
 
     private:
-        std::unique_ptr<float[]> owned_data_;
-        float* data_;
+        std::unique_ptr<int8_t[]> owned_data_;
+        int8_t* data_;
         size_t nelements_;
         size_t nbytes_;
         int ndim_;

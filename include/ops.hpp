@@ -18,7 +18,6 @@ enum class LIB {
     BLAS,
 };
 
-
 // ---
 // Matrix multiplication
 // C = A @ B
@@ -41,14 +40,14 @@ Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N, bool transB = fals
 // Normalization
 
 // RMS Norm
-Tensor rmsnorm(Tensor& X, Tensor& weight, float eps = 1e-6f);
+Tensor rmsnorm(Tensor& X, Tensor& weight, int8_t eps = 1e-6f);
 
 // ---
 // Attention
 Tensor softmax(Tensor& X, int dim);
 
 // Apply rotary positional embeddings to a single vector
-void rope_vector(float* vec, int head_dim, int position);
+void rope_vector(int8_t* vec, int head_dim, int position);
 
 // Apply rotary positional embeddings to Q and K
 void rope(Tensor& Q, Tensor& K, int head_dim, int position);

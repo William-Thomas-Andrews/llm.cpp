@@ -12,15 +12,15 @@ Tensor matmul_naive(Tensor& A, Tensor& B, int M, int K, int N) {
     shape[1] = N;
     Tensor C(shape, 2);  // owning, zero initialized
 
-    float* a = A.data();
-    float* b = B.data();
-    float* c = C.data();
+    int8_t* a = A.data();
+    int8_t* b = B.data();
+    int8_t* c = C.data();
 
     // Naive Matrix Multiply Operation (ikj)
     for (int i = 0; i < M; i++) {
         for (int k = 0; k < K; k++) {
-            // float r = A[i][k]
-            float r = a[i*K + k];
+            // int8_t r = A[i][k]
+            int8_t r = a[i*K + k];
             for (int j = 0; j < N; j++) {
                 // C[i][j] += r * B[k][j]
                 c[i*N + j] += r * b[k*N + j];
@@ -38,11 +38,11 @@ Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N, bool transB) {
     Tensor C(shape, 2);  // owning, zero initialized
 
     // OpenBlas Matrix Multiply Operation
-    if (transB)
+    if (transB);
         // B is [N, K] stored row-major; ldb = K (columns of B as stored)
-        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, 1.0, A.data(), K, B.data(), K, 0.0, C.data(), N);
-    else
-        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, 1.0, A.data(), K, B.data(), N, 0.0, C.data(), N);
+        // cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, 1.0, A.data(), K, B.data(), K, 0.0, C.data(), N);
+    else;
+        // cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, 1.0, A.data(), K, B.data(), N, 0.0, C.data(), N);
 
     return C;
 }
@@ -96,19 +96,19 @@ Tensor matmul(Tensor& A, Tensor& B, LIB mult, bool transB) {
 // ---
 // Normalization
 
-Tensor rmsnorm(Tensor& X, Tensor& weight, float eps) {
+Tensor rmsnorm(Tensor& X, Tensor& weight, int8_t eps) {
     int n = X.shape_at(X.ndim() - 1);  // last dim (number of elements per vector)
     int num_vectors = X.numel() / n;
 
     Tensor Y = X;
-    float* y = Y.data();
-    float* w = weight.data();
+    int8_t* y = Y.data();
+    int8_t* w = weight.data();
 
     for (int i = 0; i < num_vectors; i++) {
-        float* vec = y + i*n;
+        int8_t* vec = y + i*n;
 
         // compute mean of squares
-        float ms = 0.0f;
+        int8_t ms = 0.0f;
         for (int j = 0; j < n; j++) 
             ms = ms + vec[j]*vec[j];
         ms = ms / n;
@@ -136,12 +136,12 @@ Tensor softmax(const Tensor& X, int dim) {
     int vector_len = X.shape_at(dim);
 
     Tensor Y = X;
-    float* y = Y.data();
+    int8_t* y = Y.data();
 
     for (int i = 0; i < num_vectors; i++) {
-        float* ptr = y + i * vector_len;
-        float max_val = *std::max_element(ptr, ptr + vector_len);
-        float summation = 0.0f;
+        int8_t* ptr = y + i * vector_len;
+        int8_t max_val = *std::max_element(ptr, ptr + vector_len);
+        int8_t summation = 0.0f;
         for (int j = 0; j < vector_len; j++) {
             ptr[j]= std::exp(ptr[j] - max_val);
             summation += ptr[j];
@@ -155,15 +155,15 @@ Tensor softmax(const Tensor& X, int dim) {
 //
 // ---
 
-void rope_vector(float* vec, int head_dim, int position) {
+void rope_vector(int8_t* vec, int head_dim, int position) {
     for (int i = 0; i < head_dim / 2; i++) {
-        float freq = 1.0f / std::pow(10000.0f, (2.0f * i) / head_dim);
-        float theta = position * freq;
-        float cos_val = std::cos(theta);
-        float sin_val = std::sin(theta);
+        int8_t freq = 1.0f / std::pow(10000.0f, (2.0f * i) / head_dim);
+        int8_t theta = position * freq;
+        int8_t cos_val = std::cos(theta);
+        int8_t sin_val = std::sin(theta);
 
-        float x = vec[2*i];        // first of the pair
-        float y = vec[2*i + 1];    // second of the pair
+        int8_t x = vec[2*i];        // first of the pair
+        int8_t y = vec[2*i + 1];    // second of the pair
 
         vec[2*i]     = x * cos_val - y * sin_val;
         vec[2*i + 1] = x * sin_val + y * cos_val;
@@ -175,12 +175,12 @@ void rope(Tensor& Q, Tensor& K, int position) {
     int num_heads  = Q.shape_at(0);
     int head_dim   = Q.shape_at(1);
 
-    float* q = Q.data();
-    float* k = K.data();
+    int8_t* q = Q.data();
+    int8_t* k = K.data();
 
     for (int h = 0; h < num_heads; h++) {
-        float* q_head = q + h * head_dim;
-        float* k_head = k + h * head_dim;
+        int8_t* q_head = q + h * head_dim;
+        int8_t* k_head = k + h * head_dim;
         rope_vector(q_head, head_dim, position);
         rope_vector(k_head, head_dim, position);
     }
@@ -197,7 +197,7 @@ void rope(Tensor& Q, Tensor& K, int position) {
 // Sigmoid Linear Unit
 Tensor silu(const Tensor& x) {
     Tensor Y = x;
-    float* y = Y.data();
+    int8_t* y = Y.data();
 
     for (size_t i = 0; i < Y.numel(); i++)
         y[i] = y[i] * (1.0f / (1.0f + std::exp(-y[i])));
@@ -209,8 +209,8 @@ Tensor silu(const Tensor& x) {
 Tensor swiglu(Tensor& gate, Tensor& X) {
     if (gate.numel() != X.numel()) throw std::runtime_error("swiglu: size mismatch");
     Tensor Y = silu(gate);
-    float* y = Y.data();
-    float* x = X.data();
+    int8_t* y = Y.data();
+    int8_t* x = X.data();
 
     for (size_t i = 0; i < Y.numel(); i++) 
         y[i] = y[i] * x[i];
@@ -230,11 +230,11 @@ Tensor swiglu(Tensor& gate, Tensor& X) {
 Tensor add(Tensor& A, Tensor& B) {
     if (A.numel() != B.numel()) throw std::runtime_error("Error: Tensor number of elements each do not match for elementwise addition.");
     Tensor C(A.shape_array(), A.ndim()); // owning, zero initialized
-    float* a = A.data();
-    float* b = B.data();
-    float* c = C.data();
-    cblas_scopy(A.numel(), a, 1, c, 1); // c = a
-    cblas_saxpy(A.numel(), 1.0f, b, 1, c, 1); // c = 1.0*b + c
+    int8_t* a = A.data();
+    int8_t* b = B.data();
+    int8_t* c = C.data();
+    // cblas_scopy(A.numel(), a, 1, c, 1); // c = a
+    // cblas_saxpy(A.numel(), 1.0f, b, 1, c, 1); // c = 1.0*b + c
     return C;
 }
 
@@ -242,9 +242,9 @@ Tensor add(Tensor& A, Tensor& B) {
 Tensor mul(Tensor& A, Tensor& B) {
     if (A.numel() != B.numel()) throw std::runtime_error("Error: Tensor number of elements each do not match for elementwise addition.");
     Tensor C(A.shape_array(), A.ndim()); // owning, zero initialized
-    float* a = A.data();
-    float* b = B.data();
-    float* c = C.data();
+    int8_t* a = A.data();
+    int8_t* b = B.data();
+    int8_t* c = C.data();
     for (size_t i = 0; i < C.numel(); i++) 
         c[i] = a[i] * b[i];
     return C;

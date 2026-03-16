@@ -2,142 +2,8 @@
 
 
 // ---
-// KV Cache — stores K and V tensors for each layer
-KVCache::KVCache() {
-    ;
-}
-KVCache::KVCache(const TransformerConfig& config) { 
-    int kv_dim = config.num_kv_heads * (config.d_model / config.num_heads);  // 4 * 64 = 256
-    std::array<int, Tensor::MAX_DIMS> shape = {};
-    shape[0] = config.max_seq_len;
-    shape[1] = kv_dim;
-
-    k_cache.resize(config.num_layers);
-    v_cache.resize(config.num_layers);
-
-    for (int i = 0; i < config.num_layers; i++) {
-        k_cache[i] = Tensor(shape, 2);
-        v_cache[i] = Tensor(shape, 2);
-    }
-}
-
-void KVCache::clear() {
-    for (int i = 0; i < (int)k_cache.size(); i++) {
-        k_cache[i].fill(0.0f);
-        v_cache[i].fill(0.0f);
-    }
-    current_pos = 0;
-}
-
-float AttentionLayer::dot_product(float* ptr_1, float* ptr_2, int head_dim) {
-    float sum = 0.0f;
-    for (int i = 0; i < head_dim; i++)
-        sum += ptr_1[i] * ptr_2[i];
-    return sum;
-}
-
-void AttentionLayer::softmax(std::vector<float>& scores) {
-    float max_val = *std::max_element(scores.begin(), scores.end());
-    float summation = 0.0f;
-    for (int i = 0; i < scores.size(); i++) {
-        scores[i]= std::exp(scores[i] - max_val);
-        summation += scores[i];
-    }
-    for (int j = 0; j < scores.size(); j++)
-        scores[j] = scores[j] / summation;
-}
-
-// ---
-// Attention Layer
-Tensor AttentionLayer::forward(Tensor& X, int pos, TransformerWeights& W, KVCache& kv_cache, int layer_idx, const TransformerConfig& config) {
-    int head_dim    = config.d_model / config.num_heads;  // 64
-    int kv_dim      = config.num_kv_heads * head_dim;     // 256
-    int kv_per_head = config.num_heads / config.num_kv_heads;  // 8 — GQA ratio
-    float scale     = 1.0f / std::sqrt((float)head_dim);
-    // Tensor W_q_T = W.wq[layer_idx].transpose();
-    // Tensor W_k_T = W.wk[layer_idx].transpose();
-    // Tensor W_v_T = W.wv[layer_idx].transpose();    
-
-    // 1. project X into Q, K, V — weights are [out, in] (HF format), so transB=true
-    Tensor Q = matmul(X, W.wq[layer_idx], LIB::BLAS, true);
-    Tensor K = matmul(X, W.wk[layer_idx], LIB::BLAS, true);
-    Tensor V = matmul(X, W.wv[layer_idx], LIB::BLAS, true);
-
-    // 2. apply RoPE to Q and K
-    float* q_ptr = Q.data();
-    float* k_ptr = K.data();
-    for (int h = 0; h < config.num_heads; h++)
-        rope_vector(q_ptr + h * head_dim, head_dim, pos);
-    for (int h = 0; h < config.num_kv_heads; h++)
-        rope_vector(k_ptr + h * head_dim, head_dim, pos);
-
-    // 3. write K and V into cache at position pos
-    float* k_cache_ptr = kv_cache.k_cache[layer_idx].data();
-    float* v_cache_ptr = kv_cache.v_cache[layer_idx].data();
-    memcpy(k_cache_ptr + pos * kv_dim, K.data(), kv_dim * sizeof(float));
-    memcpy(v_cache_ptr + pos * kv_dim, V.data(), kv_dim * sizeof(float));
-
-    // 4. per-head attention
-    // output accumulator [1, d_model]
-    std::array<int, Tensor::MAX_DIMS> out_shape = {};
-    out_shape[0] = 1;
-    out_shape[1] = config.d_model;
-    Tensor output(out_shape, 2);  // zero initialized
-
-    // scores buffer [pos+1] — reused each head
-    std::vector<float> scores(pos + 1);
-
-    for (int h = 0; h < config.num_heads; h++) {
-        // which KV head does this belong to?
-        int kv_head = h / kv_per_head;
-
-        float* q_head = Q.data() + h * head_dim;
-        float* out_head = output.data() + h * head_dim;
-
-        // compute scores dot(q_head, each cached k for kv_h)
-        for (int t = 0; t <= pos; t++) {
-            float dot = 0.0f;
-            float* k_t = k_cache_ptr + t * kv_dim + kv_head * head_dim;
-            scores[t] = scale * dot_product(q_head, k_t, head_dim);
-        }
-
-        // softmax over scores[0..pos]
-        softmax(scores);
-
-        // weighted sum of V: out_head += scores[t] * v_cache[t]
-        for (int t = 0; t <= pos; t++) {
-            float* v_t = v_cache_ptr + t * kv_dim + kv_head * head_dim;
-            for (int d = 0; d < head_dim; d++) {
-                out_head[d] += scores[t] * v_t[d];
-            }
-        }
-    }
-
-
-    // 5. output projection — wo is [out, in] (HF format), transB=true
-    Tensor result = matmul(output, W.wo[layer_idx], LIB::BLAS, true);
-    return result;
-}
-
-// ---
-// FFN (Feed Forward Network) Layer
-Tensor FFNLayer::forward(Tensor& X, TransformerWeights& W, int layer_idx, const TransformerConfig& config) {
-
-    // gate = silu(X @ W_gate.T) — weights are [out, in] (HF format), so transB=true
-    Tensor gate = silu(matmul(X, W.w_gate[layer_idx], LIB::BLAS, true));
-
-    // up = X @ W_up.T
-    Tensor up = matmul(X, W.w_up[layer_idx], LIB::BLAS, true);
-
-    // hidden = gate * up
-    Tensor hidden = mul(gate, up); // completion of swiglu
-
-    // out = hidden @ W_down.T
-    return matmul(hidden, W.w_down[layer_idx], LIB::BLAS, true);
-}
-
-// ---
 // Full Model
+
 Transformer::Transformer(const std::string& model_path) : tokenizer_(model_path + "/tokenizer.model"), kv_cache_() {
     load_model(model_path);
     kv_cache_ = KVCache(config_);
@@ -153,7 +19,7 @@ Tensor Transformer::embed(int token_id) {
     shape[1] = config_.d_model;
 
     // non-owning view into row token_id of the embedding table
-    float* row = weights_.token_embedding.data() + (token_id * config_.d_model);
+    int8_t* row = weights_.token_embedding.data() + (token_id * config_.d_model);
     return Tensor(row, config_.d_model, shape, 2);
 }
 
@@ -185,7 +51,7 @@ Tensor Transformer::forward(int token_id, int pos) {
 
 // greedy sample — just argmax
 int Transformer::greedy_sample(Tensor& logits) {
-    float* arr = logits.data();
+    int8_t* arr = logits.data();
     return std::max_element(arr, arr + logits.numel()) - arr;
 }
 
@@ -194,14 +60,14 @@ int Transformer::sample(Tensor& logits, float temperature, float top_p,
                         const std::vector<int>& past_tokens, float rep_penalty) {
     // Apply repetition penalty: divide logit of any already-seen token by rep_penalty
     if (rep_penalty != 1.0f) {
-        float* raw = logits.data();
+        int8_t* raw = logits.data();
         for (int id : past_tokens)
             raw[id] /= rep_penalty;
     }
 
     logits.scale(1.0f / temperature);
     logits.softmax();
-    float* probs = logits.data();
+    int8_t* probs = logits.data();
     int n = logits.numel();
 
     // Build sorted index list by descending probability
@@ -314,7 +180,7 @@ void Transformer::load_weights(const std::string& model_path) {
         // allocate tensor and read data
         auto shape = make_shape(dims, ndim);
         Tensor tensor(shape, ndim);
-        fread(tensor.data(), sizeof(float), numel, f);
+        fread(tensor.data(), sizeof(int8_t), numel, f);
 
         // route tensor to the right field by name
         std::string n(name);
@@ -350,7 +216,6 @@ void Transformer::load_weights(const std::string& model_path) {
     fclose(f);
     printf("weights loaded.\n");
 }
-
 
 
 // Private

@@ -1,24 +1,31 @@
 #!/usr/bin/env python3
 import sys
 import os
+import glob
 import struct
 import numpy as np
 import torch
 from safetensors.torch import load_file
 
 def convert(model_dir: str, output_path: str):
-    safetensors_path = f"{model_dir}/model.safetensors"
-    
     print("loading weights...")
-    tensors = load_file(safetensors_path)  # loads as torch tensors
+    # Support both single-file and multi-shard models
+    shards = sorted(glob.glob(f"{model_dir}/model-*-of-*.safetensors"))
+    if shards:
+        tensors = {}
+        for shard in shards:
+            print(f"  loading shard {os.path.basename(shard)}...")
+            tensors.update(load_file(shard))
+    else:
+        tensors = load_file(f"{model_dir}/model.safetensors")
 
     with open(output_path, "wb") as f:
         # write number of tensors
         f.write(struct.pack("i", len(tensors)))
 
         for name, data in tensors.items():
-            # convert bfloat16 → float32 via torch
-            data = data.to(torch.float32).numpy()
+            # convert bfloat16 to int8 via torch
+            data = data.to(torch.int8).numpy()
             print(f"  {name}: {list(data.shape)}")
 
             # write name (64 bytes, null padded)
