@@ -102,7 +102,8 @@ public:
     int greedy_sample(Tensor& logits);
 
     // temperature sample
-    int sample(Tensor& logits, float temperature, float top_p = 0.9f);
+    int sample(Tensor& logits, float temperature, float top_p = 0.9f,
+               const std::vector<int>& past_tokens = {}, float rep_penalty = 1.3f);
 
     const TransformerConfig& config() const;
     const TransformerWeights& weights() const;

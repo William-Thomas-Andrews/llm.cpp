@@ -9,9 +9,9 @@ int main(int argc, char* argv[]) {
         std::cerr << "Usage: jarvis <model_path> [prompt] [max_tokens]\n";
         return 1;
     }
-
+    std::string input = "What are you?";
     std::string model_path  = argv[1];
-    std::string prompt      = argc > 2 ? argv[2] : "Hello, my name is";
+    std::string prompt      = argc > 2 ? argv[2] : input;
     int max_tokens          = argc > 3 ? std::stoi(argv[3]) : 100;
 
     // load model
@@ -28,17 +28,20 @@ int main(int argc, char* argv[]) {
 
     int pos = 0;
     int next_id = -1;
+    std::vector<int> generated;
 
     // process prompt tokens first
-    for (size_t i = 0; i < input_ids.size() - 1; i++) 
+    for (size_t i = 0; i < input_ids.size() - 1; i++)
         transformer.forward(input_ids[i], pos++);
 
     // generate
     next_id = input_ids.back(); // get last element
     for (int i = 0; i < max_tokens; i++) {
         Tensor logits = transformer.forward(next_id, pos++);
-        next_id = transformer.sample(logits, 1.0f);
+        next_id = transformer.sample(logits, 0.7f, 0.9f, generated);
         if (next_id == transformer.tokenizer().eos_id()) break;
+        if (next_id >= transformer.tokenizer().vocab_size()) break;  // chat template tokens (<|assistant|> etc.)
+        generated.push_back(next_id);
         std::cout << transformer.tokenizer().decode(next_id);
         std::cout.flush();
     }
