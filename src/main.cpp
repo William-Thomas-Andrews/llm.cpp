@@ -2,14 +2,14 @@
 #include <iostream>
 #include <string>
 
-#define MODEL_PATH "models/tinyllama"
+#define MODEL_PATH "models/tinyllama-chat"
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: jarvis <model_path> [prompt] [max_tokens]\n";
         return 1;
     }
-    std::string input = "What are you?";
+    std::string input = "The most popular language in the world is\nAnswer:";
     std::string model_path  = argv[1];
     std::string prompt      = argc > 2 ? argv[2] : input;
     int max_tokens          = argc > 3 ? std::stoi(argv[3]) : 100;
@@ -17,11 +17,26 @@ int main(int argc, char* argv[]) {
     // load model
     Transformer transformer(model_path); 
 
-    // encode prompt
-    std::vector<int> input_ids = transformer.tokenizer().encode(prompt);
+    auto append = [&](std::vector<int>& ids, const std::string& text) {
+        auto pieces = transformer.tokenizer().encode(text);
+        // Strip leading BOS that encode() auto-prepends
+        if (!pieces.empty() && pieces[0] == transformer.tokenizer().bos_id())
+            pieces.erase(pieces.begin());
+        // Strip standalone leading ▁ (space token, decode = " ") — added by SentencePiece
+        // at string boundaries. Keep ▁< (decode = " <") which is correct for <|system|>.
+        if (!pieces.empty() && transformer.tokenizer().decode(pieces[0]) == " ")
+            pieces.erase(pieces.begin());
+        ids.insert(ids.end(), pieces.begin(), pieces.end());
+    };
 
-    // add bos token
-    input_ids.insert(input_ids.begin(), transformer.tokenizer().bos_id());
+    std::vector<int> input_ids;
+    input_ids.push_back(transformer.tokenizer().bos_id());
+    // append(input_ids, "<|system|>\nYou are a helpful assistent.\n");
+    // input_ids.push_back(transformer.tokenizer().eos_id());
+    // append(input_ids, "\n<|user|>\n" + prompt);
+    // input_ids.push_back(transformer.tokenizer().eos_id());
+    // append(input_ids, "\n<|assistant|>\n");
+    append(input_ids, prompt);
 
     std::cout << prompt;
     std::cout.flush();
@@ -38,8 +53,8 @@ int main(int argc, char* argv[]) {
     next_id = input_ids.back(); // get last element
     for (int i = 0; i < max_tokens; i++) {
         Tensor logits = transformer.forward(next_id, pos++);
-        next_id = transformer.sample(logits, 0.7f, 0.9f, generated);
-        if (next_id == transformer.tokenizer().eos_id()) break;
+        next_id = transformer.sample(logits, 0.5f, 0.9f, generated);
+if (next_id == transformer.tokenizer().eos_id()) break;
         if (next_id >= transformer.tokenizer().vocab_size()) break;  // chat template tokens (<|assistant|> etc.)
         generated.push_back(next_id);
         std::cout << transformer.tokenizer().decode(next_id);
@@ -54,7 +69,6 @@ int main(int argc, char* argv[]) {
     // printf("num_kv_heads: %d\n", transformer.config().num_kv_heads);
     // printf("num_layers:   %d\n", transformer.config().num_layers);
     // printf("ffn_dim:      %d\n", transformer.config().ffn_dim);
-    // printf("vocab_size:   %d\n", transformer.config().vocab_size);
     // printf("max_seq_len:  %d\n", transformer.config().max_seq_len);
     // printf("rope_theta:   %.1f\n", transformer.config().rope_theta);
     // printf("eps:          %e\n", transformer.config().eps);

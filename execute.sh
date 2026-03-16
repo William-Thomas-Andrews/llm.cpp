@@ -1,3 +1,3 @@
 #!/bin/bash
 
-./build/bin/jarvis models/tinyllama
+./build/bin/jarvis models/tinyllama-chat

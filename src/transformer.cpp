@@ -144,6 +144,10 @@ Transformer::Transformer(const std::string& model_path) : tokenizer_(model_path 
 }
 
 Tensor Transformer::embed(int token_id) {
+    int embed_rows = weights_.token_embedding.shape_at(0);
+    if (token_id < 0 || token_id >= embed_rows)
+        token_id = 0;  // clamp to UNK rather than reading out-of-bounds
+
     std::array<int, Tensor::MAX_DIMS> shape = {};
     shape[0] = 1;
     shape[1] = config_.d_model;
