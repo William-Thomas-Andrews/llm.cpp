@@ -8,8 +8,7 @@
 // Extensible: add CUDA, OpenCL, and other backends later
 
 enum class Backend {
-    NAIVE,
-    CPU,
+    BASIC,
     CUDA,   // future
 };
 
@@ -22,7 +21,7 @@ enum class LIB {
 // Matrix multiplication
 // C = A @ B
 // A: [M, K], B: [K, N], C: [M, N]
-Tensor matmul(Tensor& A, Tensor& B, LIB mult, bool transB = false);
+Tensor matmul(Tensor& A, Tensor& B, LIB mult = LIB::BLAS, bool transB = false);
 
 // ---
 // Naive Matrix multiplication
@@ -63,3 +62,11 @@ Tensor swiglu(const Tensor& gate, const Tensor& X);
 // Elementwise
 Tensor add(Tensor& A, Tensor& B);
 Tensor mul(Tensor& A, Tensor& B);
+
+// ---
+// Scaling
+void scale(float* array, int n, float scalar);
+
+// --- 
+// Array softmax
+void softmax(float* array, int n);

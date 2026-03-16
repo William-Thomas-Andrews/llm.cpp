@@ -29,7 +29,7 @@ Tensor Transformer::forward(int token_id, int pos) {
     FFNLayer ffn;
     AttentionLayer attn;
     
-    // Loops through the config_.num_layers (22) layers (from num_layers in TransformerConfig)
+    // Loops through the config_.num_layers layers (from num_layers in TransformerConfig)
     for (int layer = 0; layer < config_.num_layers; layer++) {
         Tensor attn_input = rmsnorm(X, weights_.attn_norm[layer]);
         Tensor attn_out = attn.forward(attn_input, pos, weights_, kv_cache_, layer, config_);
@@ -42,10 +42,7 @@ Tensor Transformer::forward(int token_id, int pos) {
 
     X = rmsnorm(X, weights_.final_norm);
     
-    // Tensor lm_head_T = weights_.lm_head.transpose();
-    // logits
-    // return matmul(X, lm_head_T, LIB::BLAS, true);
-    // lm_head is [vocab_size, d_model]; pass directly with transB=true
+    // logits: lm_head is [vocab_size, d_model]; pass directly with transB=true
     return matmul(X, weights_.lm_head, LIB::BLAS, true);
 }
 
@@ -56,19 +53,19 @@ int Transformer::greedy_sample(Tensor& logits) {
 }
 
 // temperature + top-p (nucleus) sample
-int Transformer::sample(Tensor& logits, float temperature, float top_p,
+int Transformer::sample(float* logits, int n, float temperature, float top_p,
                         const std::vector<int>& past_tokens, float rep_penalty) {
     // Apply repetition penalty: divide logit of any already-seen token by rep_penalty
     if (rep_penalty != 1.0f) {
-        int8_t* raw = logits.data();
         for (int id : past_tokens)
-            raw[id] /= rep_penalty;
+            logits[id] /= rep_penalty;
     }
-
-    logits.scale(1.0f / temperature);
-    logits.softmax();
-    int8_t* probs = logits.data();
-    int n = logits.numel();
+    if (temperature != 1.0f)
+        scale(logits, n, 1.0f / temperature);
+    // std::cout << "Here sample" << std::endl;
+    softmax(logits, n);
+    // std::cout << "Here sample" << std::endl;
+    float* probs = logits;
 
     // Build sorted index list by descending probability
     std::vector<int> indices(n);
@@ -177,10 +174,15 @@ void Transformer::load_weights(const std::string& model_path) {
         size_t numel = 1;
         for (int i = 0; i < ndim; i++) numel *= dims[i];
 
+        // read scale factor
+        float scale = 1.0f;
+        fread(&scale, sizeof(float), 1, f);
+
         // allocate tensor and read data
         auto shape = make_shape(dims, ndim);
         Tensor tensor(shape, ndim);
         fread(tensor.data(), sizeof(int8_t), numel, f);
+        tensor.set_scale(scale);
 
         // route tensor to the right field by name
         std::string n(name);

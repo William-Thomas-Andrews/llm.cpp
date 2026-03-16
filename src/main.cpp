@@ -46,15 +46,26 @@ int main(int argc, char* argv[]) {
     std::vector<int> generated;
 
     // process prompt tokens first
+    std::cout << "Size: " << input_ids.size() << std::endl;
+
     for (size_t i = 0; i < input_ids.size() - 1; i++)
         transformer.forward(input_ids[i], pos++);
+
+    std::cout << "After" << std::endl;
 
     // generate
     next_id = input_ids.back(); // get last element
     for (int i = 0; i < max_tokens; i++) {
-        Tensor logits = transformer.forward(next_id, pos++);
-        next_id = transformer.sample(logits, 0.8f, 0.9f, generated);
-if (next_id == transformer.tokenizer().eos_id()) break;
+        Tensor L = transformer.forward(next_id, pos++);
+        int n = L.numel();
+        // Turn them to floats
+        float logits[n];
+        for (int j = 0; j < n; j++) 
+            logits[j] = static_cast<float>(L.data()[j]);
+        // std::cout << "Here again" << std::endl;
+        next_id = transformer.sample(logits, n, 0.8f, 0.9f, generated);
+        std::cout << "Here finally" << std::endl;
+        if (next_id == transformer.tokenizer().eos_id()) break;
         if (next_id >= transformer.tokenizer().vocab_size()) break;  // chat template tokens (<|assistant|> etc.)
         generated.push_back(next_id);
         std::cout << transformer.tokenizer().decode(next_id);

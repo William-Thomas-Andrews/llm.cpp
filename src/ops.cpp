@@ -12,21 +12,40 @@ Tensor matmul_naive(Tensor& A, Tensor& B, int M, int K, int N) {
     shape[1] = N;
     Tensor C(shape, 2);  // owning, zero initialized
 
-    int8_t* a = A.data();
-    int8_t* b = B.data();
-    int8_t* c = C.data();
+    // quantized values
+    int8_t* aq = A.data(); int8_t* bq = B.data();
+
+    // dequantized values
+    std::vector<float> ad(A.numel()), bd(B.numel()), cd(C.numel());
+
+    // De-Quantize arrays for matrix multiplication
+    for (int i = 0; i < A.numel(); i++)
+        ad[i] = A.dequantize(aq[i]);
+    for (int i = 0; i < B.numel(); i++)
+        bd[i] = B.dequantize(bq[i]);
 
     // Naive Matrix Multiply Operation (ikj)
     for (int i = 0; i < M; i++) {
         for (int k = 0; k < K; k++) {
-            // int8_t r = A[i][k]
-            int8_t r = a[i*K + k];
+            // float r = A[i][k]
+            float r = ad[i*K + k];
             for (int j = 0; j < N; j++) {
                 // C[i][j] += r * B[k][j]
-                c[i*N + j] += r * b[k*N + j];
+                cd[i*N + j] += r * bd[k*N + j];
             }
         }
     }
+
+    // compute scale for C from actual output range
+    float max_val = *std::max_element(cd.begin(), cd.end());
+    float min_val = *std::min_element(cd.begin(), cd.end());
+    float c_scale = std::max(std::abs(max_val), std::abs(min_val)) / 127.0f;
+    C.set_scale(c_scale); // set that scale
+
+    // Quantize to return back C
+    int8_t* c = C.data();
+    for (int i = 0; i < C.numel(); i++)
+        c[i] = C.quantize(cd[i]);
 
     return C;
 }
@@ -37,12 +56,35 @@ Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N, bool transB) {
     shape[1] = N;
     Tensor C(shape, 2);  // owning, zero initialized
 
+    // quantized values
+    int8_t* aq = A.data(); int8_t* bq = B.data();
+
+    // dequantized values
+    std::vector<float> ad(A.numel()), bd(B.numel()), cd(C.numel());
+
+    // De-Quantize arrays for matrix multiplication
+    for (int i = 0; i < A.numel(); i++)
+        ad[i] = A.dequantize(aq[i]);
+    for (int i = 0; i < B.numel(); i++)
+        bd[i] = B.dequantize(bq[i]);
+
     // OpenBlas Matrix Multiply Operation
-    if (transB);
+    if (transB)
         // B is [N, K] stored row-major; ldb = K (columns of B as stored)
-        // cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, 1.0, A.data(), K, B.data(), K, 0.0, C.data(), N);
-    else;
-        // cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, 1.0, A.data(), K, B.data(), N, 0.0, C.data(), N);
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, 1.0, ad.data(), K, bd.data(), K, 0.0, cd.data(), N);
+    else
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, 1.0, ad.data(), K, bd.data(), N, 0.0, cd.data(), N);
+
+    // compute scale for C from actual output range
+    float max_val = *std::max_element(cd.begin(), cd.end());
+    float min_val = *std::min_element(cd.begin(), cd.end());
+    float c_scale = std::max(std::abs(max_val), std::abs(min_val)) / 127.0f;
+    C.set_scale(c_scale); // set that scale
+
+    // Quantize to return back C
+    int8_t* c = C.data();
+    for (int i = 0; i < C.numel(); i++)
+        c[i] = C.quantize(cd[i]);
 
     return C;
 }
@@ -69,27 +111,6 @@ Tensor matmul(Tensor& A, Tensor& B, LIB mult, bool transB) {
         default:                        throw std::runtime_error("Unsupported multiplication.");
     }
 }
-
-// A: [M, K], B: [K, N], C: [M, N]
-// Tensor matmul(Tensor& A, Tensor B, LIB mult) {
-//     // A must be [M, K], B must be [K, N]
-//     if (A.ndim() != 2 || B.ndim() != 2) throw std::runtime_error("Error: dimensions incorrect.");
-//     if (A.shape_at(1) != B.shape_at(0)) throw std::runtime_error("Error: columns of A do not match rows of B.");
-//     if (!A.is_contiguous() || !B.is_contiguous()) throw std::runtime_error("Error: data not contiguous.");
-
-//     int M = A.shape_at(0);
-//     int K = A.shape_at(1);
-//     int N = B.shape_at(1);
-
-//     switch(mult) {
-//         case LIB::NAIVE:     return matmul_naive(A, B, M, K, N);
-//         case LIB::BLAS:      return matmul_blas(A, B, M, K, N);
-//         default:                        throw std::runtime_error("Unsupported multiplication.");
-//     }
-// }
-
-//
-// ---
 
 
 
@@ -252,3 +273,13 @@ Tensor mul(Tensor& A, Tensor& B) {
 
 //
 // ---
+
+
+void scale(float* array, int n, float scalar) {
+    for (int i = 0; i < n; i++)
+        array[i] *= scalar;
+}
+
+// void softmax(float* array, int n) {
+
+// }

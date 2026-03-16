@@ -298,18 +298,27 @@ void Tensor::scale(int8_t scalar) {
         data_[i] *= scalar;
 }
 
+int8_t Tensor::quantize(float r) {
+    return static_cast<int8_t>(std::clamp(std::round(r / scale_), -127.0f, 127.0f));
+}
+
+float Tensor::dequantize(int8_t q) {
+    return scale_ * q;
+}
+
 void Tensor::softmax() {
     if (!is_contiguous()) throw std::runtime_error("softmax requires contiguous tensor");
-
     int8_t max_val = *std::max_element(data_, data_ + nelements_);
-    int8_t summation = 0.0f;
+    float summation = 0.0f;
+    std::vector<float> buffer(nelements_);
+    std::cout << "HI!" << std::endl;
     for (int i = 0; i < nelements_; i++) {
-        data_[i]= std::exp(data_[i] - max_val);
-        summation += data_[i];
+        buffer[i] = std::exp(static_cast<float>(data_[i]) - static_cast<float>(max_val));
+        summation += buffer[i];
     }
-    summation = 1 / summation;
+    summation = 1.0f / summation;
     for (int j = 0; j < nelements_; j++)
-        data_[j] = data_[j] * summation;
+        data_[j] = static_cast<int8_t>(buffer[j] * summation * 127.0f);
 }
 
 //

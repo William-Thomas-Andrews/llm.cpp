@@ -22,10 +22,10 @@ void AttentionLayer::softmax(std::vector<int8_t>& scores) {
 }
 
 Tensor AttentionLayer::forward(Tensor& X, int pos, TransformerWeights& W, KVCache& kv_cache, int layer_idx, const TransformerConfig& config) {
-    int head_dim    = config.d_model / config.num_heads;  // 64
-    int kv_dim      = config.num_kv_heads * head_dim;     // 256
-    int kv_per_head = config.num_heads / config.num_kv_heads;  // 8 — GQA ratio
-    int8_t scale     = 1.0f / std::sqrt((int8_t)head_dim);
+    int head_dim    = config.d_model / config.num_heads;
+    int kv_dim      = config.num_kv_heads * head_dim;
+    int kv_per_head = config.num_heads / config.num_kv_heads;
+    float scale     = 1.0f / std::sqrt(head_dim);
     // Tensor W_q_T = W.wq[layer_idx].transpose();
     // Tensor W_k_T = W.wk[layer_idx].transpose();
     // Tensor W_v_T = W.wv[layer_idx].transpose();    

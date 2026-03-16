@@ -9,6 +9,7 @@
 #include <cstring>
 #include <cblas.h>
 #include <cmath>
+#include <vector>
 
 class Tensor {
 
@@ -55,6 +56,13 @@ class Tensor {
         void fill(int8_t value);
         void print() const;
 
+        // ---
+        // Quantization
+        float scale() const { return scale_; }
+        void set_scale(float s) { scale_ = s; }
+        int8_t quantize(float x);
+        float dequantize(int8_t x);
+
     private:
         std::unique_ptr<int8_t[]> owned_data_;
         int8_t* data_;
@@ -63,4 +71,5 @@ class Tensor {
         int ndim_;
         std::array<int, MAX_DIMS> shape_;
         std::array<size_t, MAX_DIMS> strides_;
+        float scale_ = 1.0f;
 };
