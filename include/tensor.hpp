@@ -57,9 +57,9 @@ class Tensor {
         void print() const;
 
         // ---
-        // Quantization
-        float scale() const { return scale_; }
-        void set_scale(float s) { scale_ = s; }
+        // Quantizationll
+        float scale() const { return q_scale_; }
+        void set_scale(float s) { q_scale_ = s; }
         int8_t quantize(float x);
         float dequantize(int8_t x);
 
@@ -71,5 +71,5 @@ class Tensor {
         int ndim_;
         std::array<int, MAX_DIMS> shape_;
         std::array<size_t, MAX_DIMS> strides_;
-        float scale_ = 1.0f;
+        float q_scale_ = 1.0f;
 };

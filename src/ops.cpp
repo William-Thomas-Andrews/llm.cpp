@@ -1,7 +1,5 @@
 #include "ops.hpp"
 
-#include <cblas.h>
-
 // ---
 // Matrix Multiplication
 
@@ -37,10 +35,14 @@ Tensor matmul_naive(Tensor& A, Tensor& B, int M, int K, int N) {
     }
 
     // compute scale for C from actual output range
-    float max_val = *std::max_element(cd.begin(), cd.end());
-    float min_val = *std::min_element(cd.begin(), cd.end());
-    float c_scale = std::max(std::abs(max_val), std::abs(min_val)) / 127.0f;
-    C.set_scale(c_scale); // set that scale
+    float r_max = *std::max_element(cd.begin(), cd.end()); // max value for (unquantized) float number line
+    float r_min = *std::min_element(cd.begin(), cd.end()); // min value for (unquantized) float number line
+    float scale = std::max(std::abs(r_max), std::abs(r_min)) / q_max;
+    C.set_scale(scale); // set that scale
+
+    // We are defining the mapping:
+    // for quantization:       q = clip(round(r / scale), -127.0f, 127.0f)
+    // for dequantization:     r ~= q * scale
 
     // Quantize to return back C
     int8_t* c = C.data();
@@ -76,10 +78,14 @@ Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N, bool transB) {
         cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, 1.0, ad.data(), K, bd.data(), N, 0.0, cd.data(), N);
 
     // compute scale for C from actual output range
-    float max_val = *std::max_element(cd.begin(), cd.end());
-    float min_val = *std::min_element(cd.begin(), cd.end());
-    float c_scale = std::max(std::abs(max_val), std::abs(min_val)) / 127.0f;
-    C.set_scale(c_scale); // set that scale
+    float r_max = *std::max_element(cd.begin(), cd.end()); // max value for (unquantized) float number line
+    float r_min = *std::min_element(cd.begin(), cd.end()); // min value for (unquantized) float number line
+    float scale = std::max(std::abs(r_max), std::abs(r_min)) / q_max; // (r_max / q_max)
+    C.set_scale(scale); // set that scale
+
+    // We are defining the mapping:
+    // for quantization:       q = clip(round(r / scale), -127.0f, 127.0f)
+    // for dequantization:     r ~= q * scale
 
     // Quantize to return back C
     int8_t* c = C.data();

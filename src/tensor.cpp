@@ -185,10 +185,6 @@ int Tensor::ndim() const {
 */
 size_t Tensor::numel() const {
     return nelements_;
-    // size_t n = 1;
-    // for (int i = 0; i < ndim_; i++)
-    //     n *= shape_[i];
-    // return n;
 }
 
 size_t Tensor::nbytes() const {
@@ -299,11 +295,14 @@ void Tensor::scale(int8_t scalar) {
 }
 
 int8_t Tensor::quantize(float r) {
-    return static_cast<int8_t>(std::clamp(std::round(r / scale_), -127.0f, 127.0f));
+    if (q_scale_ == 0.0f) return 0;
+    int32_t qi = static_cast<int32_t>(std::round(r / q_scale_)); // aligns with int32 accumulation pipeline
+    qi = std::clamp(qi, -127, 127); // restrict codomain
+    return static_cast<int8_t>(qi); // cast back to int8
 }
 
 float Tensor::dequantize(int8_t q) {
-    return scale_ * q;
+    return q_scale_ * q;
 }
 
 void Tensor::softmax() {

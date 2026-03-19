@@ -2,6 +2,9 @@
 
 #include "tensor.hpp"
 #include <cmath>
+#include <cblas.h>
+
+static constexpr float q_max = 127.0f; // max value of the (quantized) int8 number line
 
 // ---
 // Backend selector
