@@ -289,35 +289,55 @@ Tensor Tensor::transpose() const {
     return view;
 }
 
-void Tensor::scale(int8_t scalar) {
+void Tensor::q_scale(int8_t scalar) {
     for (size_t i = 0; i < nelements_; i++) 
         data_[i] *= scalar;
 }
 
-int8_t Tensor::quantize(float r) {
-    if (q_scale_ == 0.0f) return 0;
-    int32_t qi = static_cast<int32_t>(std::round(r / q_scale_)); // aligns with int32 accumulation pipeline
+int8_t Tensor::quantize(float unquantized_val) {
+    if (q_scale_ == 0.0f) return 0; // to prevent divide by 0.0 error
+
+    int32_t qi = static_cast<int32_t>(std::round(unquantized_val / q_scale_)); // aligns with int32 accumulation pipeline
     qi = std::clamp(qi, -127, 127); // restrict codomain
     return static_cast<int8_t>(qi); // cast back to int8
 }
 
-float Tensor::dequantize(int8_t q) {
-    return q_scale_ * q;
+float Tensor::dequantize(int8_t quantized_val) {
+    return q_scale_ * quantized_val;
 }
 
 void Tensor::softmax() {
     if (!is_contiguous()) throw std::runtime_error("softmax requires contiguous tensor");
-    int8_t max_val = *std::max_element(data_, data_ + nelements_);
+
+    float max_val = -INFINITY;
     float summation = 0.0f;
-    std::vector<float> buffer(nelements_);
+
     std::cout << "HI!" << std::endl;
+
+    std::vector<float> tmp_data(nelements_);
+
+    // Pass 1: dequantize and max
     for (int i = 0; i < nelements_; i++) {
-        buffer[i] = std::exp(static_cast<float>(data_[i]) - static_cast<float>(max_val));
-        summation += buffer[i];
+        float val = dequantize(data_[i]);
+        tmp_data[i] = val;
+        max_val = std::max(max_val, val);
     }
-    summation = 1.0f / summation;
-    for (int j = 0; j < nelements_; j++)
-        data_[j] = static_cast<int8_t>(buffer[j] * summation * 127.0f);
+
+    // Pass 2: exp and sum
+    for (int i = 0; i < nelements_; i++) {
+        tmp_data[i] = std::exp(tmp_data[i] - max_val);
+        summation += tmp_data[i];
+    }
+
+    // invert the summation for fast multiplication
+    float inv_summation = 1.0f / summation;
+
+    // set scale for probability distribution of tensor
+    set_scale(1.0f / q_max);
+
+    // Pass 3: normalize and quantize
+    for (int i = 0; i < nelements_; i++)
+        data_[i] = quantize(tmp_data[i] * inv_summation);
 }
 
 //
@@ -334,8 +354,23 @@ void Tensor::fill(int8_t value) {
 
 void Tensor::print() const {
     std::cout << 
-    "Tensor[F32, shape=" << shape() << ", contiguous=" << is_contiguous() << "]" 
+    "Tensor[F32, shape=" << shape() << ", contiguous=" << is_contiguous() << "]"
     << std::endl;
+}
+
+//
+// ---
+
+
+// ---
+// Global Quantization functions
+
+void quantize_array() {
+
+}
+
+void dequantize_array() {
+
 }
 
 //

@@ -3,8 +3,8 @@
 #include "tensor.hpp"
 #include <cmath>
 #include <cblas.h>
+#include <immintrin.h>
 
-static constexpr float q_max = 127.0f; // max value of the (quantized) int8 number line
 
 // ---
 // Backend selector
@@ -17,7 +17,8 @@ enum class Backend {
 
 enum class LIB {
     NAIVE,
-    BLAS,
+    BLOCKED,
+    BLAS
 };
 
 // ---
@@ -31,6 +32,12 @@ Tensor matmul(Tensor& A, Tensor& B, LIB mult = LIB::BLAS, bool transB = false);
 // C = A @ B
 // A: [M, K], B: [K, N], C: [M, N]
 Tensor matmul_naive(Tensor& A, LIB& B, int M, int K, int N);
+
+// ---
+// Blocked Matrix multiplication
+// C = A @ B
+// A: [M, K], B: [K, N], C: [M, N]
+Tensor matmul_blocked(Tensor& A, LIB& B, int M, int K, int N);
 
 // ---
 // Accelerated Matrix multiplication (OpenBlas)

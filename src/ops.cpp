@@ -14,30 +14,34 @@ Tensor matmul_naive(Tensor& A, Tensor& B, int M, int K, int N) {
     int8_t* aq = A.data(); int8_t* bq = B.data();
 
     // dequantized values
-    std::vector<float> ad(A.numel()), bd(B.numel()), cd(C.numel());
+    std::vector<float> cd(C.numel());
 
-    // De-Quantize arrays for matrix multiplication
-    for (int i = 0; i < A.numel(); i++)
-        ad[i] = A.dequantize(aq[i]);
-    for (int i = 0; i < B.numel(); i++)
-        bd[i] = B.dequantize(bq[i]);
+    std::vector<int32_t> acc(C.numel(), 0);
 
     // Naive Matrix Multiply Operation (ikj)
     for (int i = 0; i < M; i++) {
         for (int k = 0; k < K; k++) {
             // float r = A[i][k]
-            float r = ad[i*K + k];
+            int8_t r = aq[i*K + k];
             for (int j = 0; j < N; j++) {
                 // C[i][j] += r * B[k][j]
-                cd[i*N + j] += r * bd[k*N + j];
+                acc[i*N + j] += r * bq[k*N + j];
             }
         }
     }
+    float scaling_val = A.q_scale() * B.q_scale();
+    for (int i = 0; i < cd.size(); i++)
+        cd[i] = acc[i] * scaling_val;
 
     // compute scale for C from actual output range
-    float r_max = *std::max_element(cd.begin(), cd.end()); // max value for (unquantized) float number line
-    float r_min = *std::min_element(cd.begin(), cd.end()); // min value for (unquantized) float number line
-    float scale = std::max(std::abs(r_max), std::abs(r_min)) / q_max;
+    float r_max = -INFINITY; 
+    float r_min = -INFINITY;
+    for (int i = 0; i < cd.size(); i++) {
+        r_max = std::max(r_max, cd[i]); // finding the max value for (unquantized) float number line
+        r_min = std::min(r_min, cd[i]); // finding the min value for (unquantized) float number line
+    }
+    float scale = std::max(std::abs(r_max), std::abs(r_min)) / q_max; // (r_max / q_max)
+    if (scale == 0.0f) scale = 1e-8f;
     C.set_scale(scale); // set that scale
 
     // We are defining the mapping:
@@ -51,6 +55,124 @@ Tensor matmul_naive(Tensor& A, Tensor& B, int M, int K, int N) {
 
     return C;
 }
+
+// A: [M, K], B: [K, N], C: [M, N]
+Tensor matmul_blocked(Tensor& A, Tensor& B, int M, int K, int N) {
+    std::array<int, Tensor::MAX_DIMS> shape = {};
+    shape[0] = M;
+    shape[1] = N;
+    Tensor C(shape, 2);  // owning, zero initialized
+
+    // quantized values
+    int8_t* aq = A.data(); int8_t* bq = B.data();
+
+    // dequantized values
+    std::vector<float> cd(C.numel());
+
+    std::vector<int32_t> acc(C.numel(), 0);
+
+
+    int block_size = (M > 64 && N > 64 && K > 64) ? 32 : 16;
+    int BM = (M / block_size) * block_size; // largest multiple of block_size <= M
+    int BN = (N / block_size) * block_size; // largest multiple of block_size <= N
+    int BK = (K / block_size) * block_size; // largest multiple of block_size <= K
+
+    if (block_size == 32) {
+        // manipulate blocks (32 element block size, 256 bits)
+        for (int bi = 0; bi < BM; bi += block_size) {
+            for (int bk = 0; bk < BK; bk += block_size) {
+                for (int bj = 0; bj < BN; bj += block_size) {
+                    // within the blocks
+                    for (int i = bi; i < bi + block_size; i++) {
+                        for (int k = bk; k < bk + block_size; k++) {
+                            // int8_t a_val = aq[i*K + k];
+                            // __m128i v = _mm_loadu_si128((__m128i*)&aq[i*K + k]);
+                            __m256i a_vec = _mm256_load_si256((__m256i*)&aq[i*K + k]);
+                            for (int j = bj; j < bj + block_size; j++) {
+                                // acc[i*N + j] += a_val * bq[k*N + j];
+                                __m256i b_vec = _mm256_load_si256((__m256i*)&bq[k*N + j]);
+                                __m256i res_vec = _mm256_add_epi8(a_vec, b_vec);
+                                _mm256_storeu_si256((__m256i*)&acc[i*N + j], res_vec);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        // manipulate blocks (16 block size, 128 bits)
+        for (int bi = 0; bi < BM; bi += block_size) {
+            for (int bk = 0; bk < BK; bk += block_size) {
+                for (int bj = 0; bj < BN; bj += block_size) {
+                    // within the blocks
+                    for (int i = bi; i < bi + block_size; i++) {
+                        for (int k = bk; k < bk + block_size; k++) {
+                            int8_t a_val = aq[i*K + k];
+                            for (int j = bj; j < bj + block_size; j++) {
+                                acc[i*N + j] += a_val * bq[k*N + j];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // leftover rows
+    for (int i = BM; i < M; i++) {
+        for (int k = 0; k < K; k++) {
+            for (int j = 0; j < N; j++) {
+                acc[i*N + j] += aq[i*K + k] * bq[k*N + j];
+            }
+        }
+    }
+
+    // leftover K
+    for (int i = 0; i < BM; i++) { // less than BM to prevent double counting (double counts when i >= BM and k in [0,K] ).
+        for (int k = BK; k < K; k++) {
+            for (int j = 0; j < N; j++) {
+                acc[i*N + j] += aq[i*K + k] * bq[k*N + j];
+            }
+        }
+    }
+
+    // scale array
+    float scale_val = A.q_scale() * B.q_scale();
+    for (int i = 0; i < cd.size(); i++) 
+        cd[i] = acc[i] * scale_val;
+
+    // compute scale for C from actual output range
+    float r_max = -INFINITY; 
+    float r_min = -INFINITY;
+    for (int i = 0; i < cd.size(); i++) {
+        r_max = std::max(r_max, cd[i]); // finding the max value for (unquantized) float number line
+        r_min = std::min(r_min, cd[i]); // finding the min value for (unquantized) float number line
+    }
+    float scale = std::max(std::abs(r_max), std::abs(r_min)) / q_max; // (r_max / q_max)
+    if (scale == 0.0f) scale = 1e-8f;
+    C.set_scale(scale); // set that scale
+
+    // We are defining the mapping:
+    // for quantization:       q = clip(round(r / scale), -127.0f, 127.0f)
+    // for dequantization:     r ~= q * scale
+
+    // Quantize to return back C
+    int8_t* c = C.data();
+    for (int i = 0; i < C.numel(); i++)
+        c[i] = C.quantize(cd[i]);
+
+    return C;
+}
+
+    // handle everything not covered by blocks
+    for (int i = 0; i < M; i++) {
+        for (int k = 0; k < K; k++) {
+            if (i < BM && k < BK) continue;  // already handled
+            for (int j = 0; j < N; j++) {
+                acc[i*N + j] += aq[i*K + k] * bq[k*N + j];
+            }
+        }
+    }
 
 Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N, bool transB) {
     std::array<int, Tensor::MAX_DIMS> shape = {};
@@ -78,9 +200,14 @@ Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N, bool transB) {
         cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, 1.0, ad.data(), K, bd.data(), N, 0.0, cd.data(), N);
 
     // compute scale for C from actual output range
-    float r_max = *std::max_element(cd.begin(), cd.end()); // max value for (unquantized) float number line
-    float r_min = *std::min_element(cd.begin(), cd.end()); // min value for (unquantized) float number line
+    float r_max = -INFINITY; 
+    float r_min = -INFINITY;
+    for (int i = 0; i < cd.size(); i++) {
+        r_max = std::max(r_max, cd[i]); // finding the max value for (unquantized) float number line
+        r_min = std::min(r_min, cd[i]); // finding the min value for (unquantized) float number line
+    }
     float scale = std::max(std::abs(r_max), std::abs(r_min)) / q_max; // (r_max / q_max)
+    if (scale == 0.0f) scale = 1e-8f;
     C.set_scale(scale); // set that scale
 
     // We are defining the mapping:
@@ -112,9 +239,10 @@ Tensor matmul(Tensor& A, Tensor& B, LIB mult, bool transB) {
     int N = transB ? B.shape_at(0) : B.shape_at(1);
 
     switch(mult) {
-        case LIB::NAIVE:     return matmul_naive(A, B, M, K, N);
-        case LIB::BLAS:      return matmul_blas(A, B, M, K, N, transB);
-        default:                        throw std::runtime_error("Unsupported multiplication.");
+        case LIB::NAIVE:      return matmul_naive(A, B, M, K, N);
+        case LIB::BLOCKED:    return matmul_naive(A, B, M, K, N);
+        case LIB::BLAS:       return matmul_blas(A, B, M, K, N, transB);
+        default:              throw std::runtime_error("Unsupported multiplication.");
     }
 }
 

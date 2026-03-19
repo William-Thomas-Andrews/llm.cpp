@@ -11,6 +11,8 @@
 #include <cmath>
 #include <vector>
 
+static constexpr float q_max = 127.0f; // max value of the (quantized) int8 number line
+
 class Tensor {
 
     public:
@@ -57,11 +59,11 @@ class Tensor {
         void print() const;
 
         // ---
-        // Quantizationll
-        float scale() const { return q_scale_; }
+        // Quantization
+        float q_scale() const { return q_scale_; }
         void set_scale(float s) { q_scale_ = s; }
-        int8_t quantize(float x);
-        float dequantize(int8_t x);
+        int8_t quantize(float unquantized_val);
+        float dequantize(int8_t quantized_val);
 
     private:
         std::unique_ptr<int8_t[]> owned_data_;
@@ -73,3 +75,8 @@ class Tensor {
         std::array<size_t, MAX_DIMS> strides_;
         float q_scale_ = 1.0f;
 };
+
+// ---
+// Global Quantization functions
+void quantize_array();
+void dequantize_array();
