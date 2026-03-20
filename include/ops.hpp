@@ -26,7 +26,7 @@ enum class LIB {
 // Matrix multiplication
 // C = A @ B
 // A: [M, K], B: [K, N], C: [M, N]
-Tensor matmul(Tensor& A, Tensor& B, LIB mult = LIB::BLAS, bool transB = false);
+Tensor matmul(Tensor& A, Tensor& B, LIB mult = LIB::BLOCKED, bool transB = false);
 
 // ---
 // Naive Matrix multiplication

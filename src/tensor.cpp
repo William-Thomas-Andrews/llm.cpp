@@ -289,7 +289,7 @@ Tensor Tensor::transpose() const {
     return view;
 }
 
-void Tensor::q_scale(int8_t scalar) {
+void Tensor::scale(int8_t scalar) {
     for (size_t i = 0; i < nelements_; i++) 
         data_[i] *= scalar;
 }

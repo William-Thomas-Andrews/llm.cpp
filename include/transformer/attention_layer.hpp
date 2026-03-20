@@ -10,8 +10,8 @@
 // Attention Layer
 
 struct AttentionLayer {
-    int8_t dot_product(int8_t* ptr_1, int8_t* ptr_2, int head_dim);
-    void softmax(std::vector<int8_t>& scores);
+    float dot_product(int8_t* ptr_1, int8_t* ptr_2, Tensor& tensor_1, Tensor& tensor_2, int head_dim);
+    void softmax(std::vector<float>& scores);
     Tensor forward(Tensor& X, int pos,
                     TransformerWeights& W,
                     KVCache& kv_cache,
