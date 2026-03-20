@@ -9,7 +9,8 @@ int main(int argc, char* argv[]) {
         std::cerr << "Usage: jarvis <model_path> [prompt] [max_tokens]\n";
         return 1;
     }
-    std::string input = "The most popular language in the world is\nAnswer:";
+    // std::string input = "The College of William & Mary was founded in year\nAnswer:";
+    std::string input = "The capital of Virginia is\nAnswer:";
     std::string model_path  = argv[1];
     std::string prompt      = argc > 2 ? argv[2] : input;
     int max_tokens          = argc > 3 ? std::stoi(argv[3]) : 100;
@@ -53,7 +54,7 @@ int main(int argc, char* argv[]) {
     next_id = input_ids.back(); // get last element
     for (int i = 0; i < max_tokens; i++) {
         Tensor logits = transformer.forward(next_id, pos++);
-        next_id = transformer.sample(logits, 0.5f, 0.9f, generated);
+        next_id = transformer.sample(logits, 0.2f, 0.9f, generated);
 if (next_id == transformer.tokenizer().eos_id()) break;
         if (next_id >= transformer.tokenizer().vocab_size()) break;  // chat template tokens (<|assistant|> etc.)
         generated.push_back(next_id);
