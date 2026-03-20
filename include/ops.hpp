@@ -18,6 +18,7 @@ enum class Backend {
 enum class LIB {
     NAIVE,
     BLOCKED,
+    MICROKERNEL,
     BLAS
 };
 
