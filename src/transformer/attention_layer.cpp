@@ -25,23 +25,15 @@ Tensor AttentionLayer::forward(Tensor& X, int pos, TransformerWeights& W, KVCach
     int head_dim    = config.d_model / config.num_heads;
     int kv_dim      = config.num_kv_heads * head_dim;
     int kv_per_head = config.num_heads / config.num_kv_heads;
-    float scale     = 1.0f / std::sqrt(head_dim);
-    // Tensor W_q_T = W.wq[layer_idx].transpose();
-    // Tensor W_k_T = W.wk[layer_idx].transpose();
-    // Tensor W_v_T = W.wv[layer_idx].transpose();    
+    float scale     = 1.0f / std::sqrt(head_dim); 
 
     // 1. project X into Q, K, V — weights are [out, in] (HF format), so transB=true
-    Tensor Q = matmul(X, W.wq[layer_idx], LIB::BLAS, true);
-    Tensor K = matmul(X, W.wk[layer_idx], LIB::BLAS, true);
-    Tensor V = matmul(X, W.wv[layer_idx], LIB::BLAS, true);
+    Tensor Q = matmul(X, W.wq[layer_idx], LIB::BLOCKED, true); // implicit transpose = true
+    Tensor K = matmul(X, W.wk[layer_idx], LIB::BLOCKED, true); // implicit transpose = true
+    Tensor V = matmul(X, W.wv[layer_idx], LIB::BLOCKED, true); // implicit transpose = true
 
     // 2. apply RoPE to Q and K
-    int8_t* q_ptr = Q.data();
-    int8_t* k_ptr = K.data();
-    for (int h = 0; h < config.num_heads; h++)
-        rope_vector(q_ptr + h * head_dim, head_dim, pos);
-    for (int h = 0; h < config.num_kv_heads; h++)
-        rope_vector(k_ptr + h * head_dim, head_dim, pos);
+    rope(Q, K, head_dim, pos);
 
     // 3. write K and V into cache at position pos
     int8_t* k_cache_ptr = kv_cache.k_cache[layer_idx].data();

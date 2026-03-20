@@ -50,24 +50,24 @@ Tensor matmul_blas(Tensor& A, Tensor& B, int M, int K, int N, bool transB = fals
 // Normalization
 
 // RMS Norm
-Tensor rmsnorm(Tensor& X, Tensor& weight, int8_t eps = 1e-6f);
+Tensor rmsnorm(Tensor& X, Tensor& weight, float eps = 1e-6f);
 
 // ---
 // Attention
 Tensor softmax(Tensor& X, int dim);
 
 // Apply rotary positional embeddings to a single vector
-void rope_vector(int8_t* vec, int head_dim, int position);
+void rope_vector(std::vector<float>& vec, int h, int head_dim, const std::vector<float>& cos_vals, const std::vector<float>& sin_vals);
 
 // Apply rotary positional embeddings to Q and K
 void rope(Tensor& Q, Tensor& K, int head_dim, int position);
 
 // ---
 // Activations
-Tensor silu(const Tensor& X);
+Tensor silu(Tensor& X);
 
 // SwiGLU: silu(gate) * x — used in LLaMA FFN
-Tensor swiglu(const Tensor& gate, const Tensor& X);
+Tensor swiglu(Tensor& gate, Tensor& X);
 
 // ---
 // Elementwise

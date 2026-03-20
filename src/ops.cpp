@@ -373,7 +373,7 @@ Tensor matmul(Tensor& A, Tensor& B, LIB mult, bool transB) {
 // ---
 // Normalization
 
-Tensor rmsnorm(Tensor& X, Tensor& weight, int8_t eps) {
+Tensor rmsnorm(Tensor& X, Tensor& weight, float eps) {
     int n = X.shape_at(X.ndim() - 1);  // last dim (number of elements per vector)
     int num_vectors = X.numel() / n;
 
@@ -381,20 +381,38 @@ Tensor rmsnorm(Tensor& X, Tensor& weight, int8_t eps) {
     int8_t* y = Y.data();
     int8_t* w = weight.data();
 
-    for (int i = 0; i < num_vectors; i++) {
-        int8_t* vec = y + i*n;
+    std::vector<float> yd(Y.numel()), wd(weight.numel());
+    for (int i = 0; i < Y.numel(); i++)
+        yd[i] = Y.dequantize(y[i]);
+    for (int i = 0; i < weight.numel(); i++)
+        wd[i] = weight.dequantize(w[i]);
 
+    for (int i = 0; i < num_vectors; i++) {
         // compute mean of squares
-        int8_t ms = 0.0f;
+        float ms = 0.0f;
         for (int j = 0; j < n; j++) 
-            ms = ms + vec[j]*vec[j];
+            ms = ms + yd[i*n + j]*yd[i*n + j];
         ms = ms / n;
 
         // normalize and scale
         ms = 1.0f /std::sqrt(ms + eps);
         for (int j = 0; j < n; j++)
-            vec[j] = vec[j] * ms * w[j];
+            yd[i*n + j] = yd[i*n + j] * ms * wd[j];
     }
+
+    // Compute output scale from actual output range
+    float r_max = -INFINITY, r_min = +INFINITY;
+    for (int i = 0; i < (int)yd.size(); i++) {
+        r_max = std::max(r_max, yd[i]);
+        r_min = std::min(r_min, yd[i]);
+    }
+    float scale = std::max(std::abs(r_max), std::abs(r_min)) / q_max;
+    if (scale == 0.0f) scale = 1e-8f;
+    Y.set_scale(scale);
+
+    // Re-Quantize
+    for (int i = 0; i < Y.numel(); i++)
+        y[i] = Y.quantize(yd[i]);
 
     return Y;
 }
@@ -414,36 +432,51 @@ Tensor softmax(const Tensor& X, int dim) {
 
     Tensor Y = X;
     int8_t* y = Y.data();
+    std::vector<float> yd(Y.numel());
+    for (int i = 0; i < Y.numel(); i++)
+        yd[i] = Y.dequantize(y[i]);
 
     for (int i = 0; i < num_vectors; i++) {
-        int8_t* ptr = y + i * vector_len;
-        int8_t max_val = *std::max_element(ptr, ptr + vector_len);
-        int8_t summation = 0.0f;
+        float max_val = *std::max_element((yd.begin() + i*vector_len), (yd.begin() + i*vector_len) + vector_len);
+        float summation = 0.0f;
         for (int j = 0; j < vector_len; j++) {
-            ptr[j]= std::exp(ptr[j] - max_val);
-            summation += ptr[j];
+            yd[i*vector_len + j] = std::exp(yd[i*vector_len + j] - max_val);
+            summation += yd[i*vector_len + j];
         }
+        summation = 1.0f / summation;
         for (int k = 0; k < vector_len; k++)
-            ptr[k] = ptr[k] / summation;
+            yd[i*vector_len + k] = yd[i*vector_len + k] * summation;
     }
+
+    // Compute output scale from actual output range
+    float r_max = -INFINITY, r_min = +INFINITY;
+    for (int i = 0; i < (int)yd.size(); i++) {
+        r_max = std::max(r_max, yd[i]);
+        r_min = std::min(r_min, yd[i]);
+    }
+    float scale = std::max(std::abs(r_max), std::abs(r_min)) / q_max;
+    if (scale == 0.0f) scale = 1e-8f;
+    Y.set_scale(scale);
+
+    // Re-Quantize
+    for (int i = 0; i < Y.numel(); i++)
+        y[i] = Y.quantize(yd[i]);
+
     return Y;
 }
 
 //
 // ---
 
-void rope_vector(int8_t* vec, int head_dim, int position) {
+void rope_vector(std::vector<float>& vec, int h, int head_dim, const std::vector<float>& cos_vals, const std::vector<float>& sin_vals) {
+    int start_index = h * head_dim;
     for (int i = 0; i < head_dim / 2; i++) {
-        int8_t freq = 1.0f / std::pow(10000.0f, (2.0f * i) / head_dim);
-        int8_t theta = position * freq;
-        int8_t cos_val = std::cos(theta);
-        int8_t sin_val = std::sin(theta);
 
-        int8_t x = vec[2*i];        // first of the pair
-        int8_t y = vec[2*i + 1];    // second of the pair
+        float x = vec[start_index + 2*i];        // first of the pair
+        float y = vec[start_index + 2*i + 1];    // second of the pair
 
-        vec[2*i]     = x * cos_val - y * sin_val;
-        vec[2*i + 1] = x * sin_val + y * cos_val;
+        vec[start_index + 2*i]     = x * cos_vals[i] - y * sin_vals[i];
+        vec[start_index + 2*i + 1] = x * sin_vals[i] + y * cos_vals[i];
     }
 }
 
@@ -455,12 +488,54 @@ void rope(Tensor& Q, Tensor& K, int position) {
     int8_t* q = Q.data();
     int8_t* k = K.data();
 
-    for (int h = 0; h < num_heads; h++) {
-        int8_t* q_head = q + h * head_dim;
-        int8_t* k_head = k + h * head_dim;
-        rope_vector(q_head, head_dim, position);
-        rope_vector(k_head, head_dim, position);
+    std::vector<float> qd(Q.numel()), kd(K.numel());
+    for (int i = 0; i < Q.numel(); i++)
+        qd[i] = Q.dequantize(q[i]);
+    for (int i = 0; i < K.numel(); i++)
+        kd[i] = K.dequantize(k[i]);
+
+    
+    std::vector<float> cos_vals(head_dim / 2);
+    std::vector<float> sin_vals(head_dim / 2);
+    for (int i = 0; i < head_dim / 2; i++) {
+        float freq = 1.0f / std::pow(10000.0f, (2.0f * i) / head_dim);
+        float theta = position * freq;
+        cos_vals[i] = std::cos(theta);
+        sin_vals[i] = std::sin(theta);
     }
+
+    for (int h = 0; h < num_heads; h++) {
+        rope_vector(qd, h, head_dim, cos_vals, sin_vals);
+        rope_vector(kd, h, head_dim, cos_vals, sin_vals);
+    }
+
+    // Compute output scale from actual output range
+    float r_max = -INFINITY, r_min = +INFINITY;
+    for (int i = 0; i < (int)qd.size(); i++) {
+        r_max = std::max(r_max, qd[i]);
+        r_min = std::min(r_min, qd[i]);
+    }
+    float scale = std::max(std::abs(r_max), std::abs(r_min)) / q_max;
+    if (scale == 0.0f) scale = 1e-8f;
+    Q.set_scale(scale);
+
+    // Re-Quantize
+    for (int i = 0; i < Q.numel(); i++)
+        q[i] = Q.quantize(qd[i]);
+
+    // Compute output scale from actual output range
+    r_max = -INFINITY; r_min = +INFINITY;
+    for (int i = 0; i < (int)kd.size(); i++) {
+        r_max = std::max(r_max, kd[i]);
+        r_min = std::min(r_min, kd[i]);
+    }
+    scale = std::max(std::abs(r_max), std::abs(r_min)) / q_max;
+    if (scale == 0.0f) scale = 1e-8f;
+    K.set_scale(scale);
+
+    // Re-Quantize
+    for (int i = 0; i < K.numel(); i++)
+        k[i] = K.quantize(kd[i]);
 }
 
 //
@@ -472,12 +547,30 @@ void rope(Tensor& Q, Tensor& K, int position) {
 // Activations
 
 // Sigmoid Linear Unit
-Tensor silu(const Tensor& x) {
-    Tensor Y = x;
+Tensor silu(Tensor& X) {
+    Tensor Y = X;
     int8_t* y = Y.data();
 
-    for (size_t i = 0; i < Y.numel(); i++)
-        y[i] = y[i] * (1.0f / (1.0f + std::exp(-y[i])));
+    std::vector<float> yd(Y.numel());
+
+    for (size_t i = 0; i < Y.numel(); i++) {
+        float xd = X.dequantize(y[i]);
+        yd[i] = xd * (1.0f / (1.0f + std::exp(-xd)));
+    }
+
+    // Compute output scale from actual output range
+    float r_max = -INFINITY, r_min = +INFINITY;
+    for (int i = 0; i < (int)yd.size(); i++) {
+        r_max = std::max(r_max, yd[i]);
+        r_min = std::min(r_min, yd[i]);
+    }
+    float scale = std::max(std::abs(r_max), std::abs(r_min)) / q_max;
+    if (scale == 0.0f) scale = 1e-8f;
+    Y.set_scale(scale);
+
+    // Re-Quantize
+    for (int i = 0; i < Y.numel(); i++)
+        y[i] = Y.quantize(yd[i]);
 
     return Y;
 }
@@ -489,9 +582,25 @@ Tensor swiglu(Tensor& gate, Tensor& X) {
     int8_t* y = Y.data();
     int8_t* x = X.data();
 
-    for (size_t i = 0; i < Y.numel(); i++) 
-        y[i] = y[i] * x[i];
+    std::vector<float> yd(Y.numel());
 
+    for (size_t i = 0; i < Y.numel(); i++) 
+        yd[i] = Y.dequantize(y[i]) * X.dequantize(x[i]);
+
+    // Compute output scale from actual output range
+    float r_max = -INFINITY, r_min = +INFINITY;
+    for (int i = 0; i < (int)yd.size(); i++) {
+        r_max = std::max(r_max, yd[i]);
+        r_min = std::min(r_min, yd[i]);
+    }
+    float scale = std::max(std::abs(r_max), std::abs(r_min)) / q_max;
+    if (scale == 0.0f) scale = 1e-8f;
+    Y.set_scale(scale);
+
+    // Re-Quantize
+    for (int i = 0; i < Y.numel(); i++)
+        y[i] = Y.quantize(yd[i]);
+        
     return Y;
 }
 
@@ -505,25 +614,89 @@ Tensor swiglu(Tensor& gate, Tensor& X) {
 
 // Elementwise add
 Tensor add(Tensor& A, Tensor& B) {
-    if (A.numel() != B.numel()) throw std::runtime_error("Error: Tensor number of elements each do not match for elementwise addition.");
-    Tensor C(A.shape_array(), A.ndim()); // owning, zero initialized
+    if (A.numel() != B.numel()) throw std::runtime_error("[elementwise add] Error: Tensor size mismatch.");
+
+    Tensor C(A.shape_array(), A.ndim());
+
     int8_t* a = A.data();
     int8_t* b = B.data();
     int8_t* c = C.data();
+
+    std::vector<int32_t> acc(C.numel());
+
+    // Step 1: int32 accumulation
+    for (size_t i = 0; i < C.numel(); i++)
+        acc[i] = (int32_t)a[i] * (int32_t)b[i];
+
+    // Step 2: find max absolute value
+    int32_t max_abs = 0;
+    for (auto v : acc) {
+        int32_t abs_v = (v == INT32_MIN) ? INT32_MAX : std::abs(v);
+        max_abs = std::max(max_abs, abs_v);
+    }
+
+    float ab_scale = A.q_scale() * B.q_scale();
+
+    float scale = max_abs * ab_scale / q_max;
+    if (scale == 0.0f) scale = 1e-8f;
+
+    C.set_scale(scale);
+
+    // Step 3: requantize
+    float combined_scale = ab_scale / scale;
+
+    // Step 4: add operation
+    for (size_t i = 0; i < C.numel(); i++) {
+        float val = acc[i] + combined_scale;
+        c[i] = C.quantize(val);
+    }
+
     // cblas_scopy(A.numel(), a, 1, c, 1); // c = a
     // cblas_saxpy(A.numel(), 1.0f, b, 1, c, 1); // c = 1.0*b + c
+
     return C;
 }
 
 // Elementwise multiply
 Tensor mul(Tensor& A, Tensor& B) {
-    if (A.numel() != B.numel()) throw std::runtime_error("Error: Tensor number of elements each do not match for elementwise addition.");
-    Tensor C(A.shape_array(), A.ndim()); // owning, zero initialized
+    if (A.numel() != B.numel())
+        throw std::runtime_error("[elementwise multiplication] Error: Tensor size mismatch.");
+
+    Tensor C(A.shape_array(), A.ndim());
+
     int8_t* a = A.data();
     int8_t* b = B.data();
     int8_t* c = C.data();
-    for (size_t i = 0; i < C.numel(); i++) 
-        c[i] = a[i] * b[i];
+
+    std::vector<int32_t> acc(C.numel());
+
+    // Step 1: int32 accumulation
+    for (size_t i = 0; i < C.numel(); i++)
+        acc[i] = (int32_t)a[i] * (int32_t)b[i];
+
+    // Step 2: find max absolute value
+    int32_t max_abs = 0;
+    for (auto v : acc) {
+        int32_t abs_v = (v == INT32_MIN) ? INT32_MAX : std::abs(v);
+        max_abs = std::max(max_abs, abs_v);
+    }
+
+    float ab_scale = A.q_scale() * B.q_scale();
+
+    float scale = max_abs * ab_scale / q_max;
+    if (scale == 0.0f) scale = 1e-8f;
+
+    C.set_scale(scale);
+
+    // Step 3: requantize
+    float combined_scale = ab_scale / scale;
+
+    // Step 4: multiplication operation
+    for (size_t i = 0; i < C.numel(); i++) {
+        float val = acc[i] * combined_scale;
+        c[i] = C.quantize(val);
+    }
+
     return C;
 }
 
@@ -535,7 +708,3 @@ void scale(float* array, int n, float scalar) {
     for (int i = 0; i < n; i++)
         array[i] *= scalar;
 }
-
-// void softmax(float* array, int n) {
-
-// }
