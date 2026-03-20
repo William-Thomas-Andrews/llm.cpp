@@ -98,38 +98,37 @@ Tensor matmul_microkernel(Tensor& A, Tensor& B, int M, int K, int N) {
                             __m256i acc3_lo = _mm256_loadu_si256((__m256i*)&acc[(i+3)*N + j]);
                             __m256i acc3_hi = _mm256_loadu_si256((__m256i*)&acc[(i+3)*N + j + 8]);
 
-                            for (int k = bk; k < bk + block_size; k++) {
+                            // Process 2 k values per iteration using madd_epi16:
+                            // interleave two B rows so madd computes a[k]*b[k][j] + a[k+1]*b[k+1][j]
+                            // in one instruction instead of two mullo_epi32 chains.
+                            // block_size is always 16 or 32, so k always steps evenly.
+                            for (int k = bk; k < bk + block_size; k += 2) {
 
-                                // load B once
-                                __m128i b8 = _mm_loadu_si128((__m128i*)&bq[k*N + j]);
-                                __m256i b16 = _mm256_cvtepi8_epi16(b8);
+                                // Load two consecutive B rows and interleave pairs:
+                                // b_lo16 = [b[k][j0], b[k+1][j0], b[k][j1], b[k+1][j1], ... x8]
+                                // b_hi16 = [b[k][j8], b[k+1][j8], ..., b[k][j15], b[k+1][j15]]
+                                __m128i b8_k0 = _mm_loadu_si128((__m128i*)&bq[(k+0)*N + j]);
+                                __m128i b8_k1 = _mm_loadu_si128((__m128i*)&bq[(k+1)*N + j]);
+                                __m256i b_lo16 = _mm256_cvtepi8_epi16(_mm_unpacklo_epi8(b8_k0, b8_k1));
+                                __m256i b_hi16 = _mm256_cvtepi8_epi16(_mm_unpackhi_epi8(b8_k0, b8_k1));
 
-                                // split B into lo/hi int32
-                                __m128i b_lo = _mm256_castsi256_si128(b16);
-                                __m128i b_hi = _mm256_extracti128_si256(b16, 1);
+                                // Pack A pair as int32: low 16 bits = a[k], high 16 bits = a[k+1].
+                                // set1_epi32 broadcasts this across the register as int16 pairs
+                                // [a[k], a[k+1], a[k], a[k+1], ...] for madd to consume.
+                                #define MADD_ROW(row, alo, ahi)                                          \
+                                {                                                                         \
+                                    __m256i av = _mm256_set1_epi32(                                      \
+                                        (int32_t)(uint16_t)(int16_t)aq[(i+(row))*K + k  ] |             \
+                                       ((int32_t)           (int16_t)aq[(i+(row))*K + k+1] << 16));     \
+                                    (alo) = _mm256_add_epi32((alo), _mm256_madd_epi16(av, b_lo16));      \
+                                    (ahi) = _mm256_add_epi32((ahi), _mm256_madd_epi16(av, b_hi16));      \
+                                }
 
-                                __m256i b_lo32 = _mm256_cvtepi16_epi32(b_lo);
-                                __m256i b_hi32 = _mm256_cvtepi16_epi32(b_hi);
-
-                                // === row 0 ===
-                                __m256i a0 = _mm256_set1_epi32((int32_t)aq[(i+0)*K + k]);
-                                acc0_lo = _mm256_add_epi32(acc0_lo, _mm256_mullo_epi32(a0, b_lo32));
-                                acc0_hi = _mm256_add_epi32(acc0_hi, _mm256_mullo_epi32(a0, b_hi32));
-
-                                // === row 1 ===
-                                __m256i a1 = _mm256_set1_epi32((int32_t)aq[(i+1)*K + k]);
-                                acc1_lo = _mm256_add_epi32(acc1_lo, _mm256_mullo_epi32(a1, b_lo32));
-                                acc1_hi = _mm256_add_epi32(acc1_hi, _mm256_mullo_epi32(a1, b_hi32));
-
-                                // === row 2 ===
-                                __m256i a2 = _mm256_set1_epi32((int32_t)aq[(i+2)*K + k]);
-                                acc2_lo = _mm256_add_epi32(acc2_lo, _mm256_mullo_epi32(a2, b_lo32));
-                                acc2_hi = _mm256_add_epi32(acc2_hi, _mm256_mullo_epi32(a2, b_hi32));
-
-                                // === row 3 ===
-                                __m256i a3 = _mm256_set1_epi32((int32_t)aq[(i+3)*K + k]);
-                                acc3_lo = _mm256_add_epi32(acc3_lo, _mm256_mullo_epi32(a3, b_lo32));
-                                acc3_hi = _mm256_add_epi32(acc3_hi, _mm256_mullo_epi32(a3, b_hi32));
+                                MADD_ROW(0, acc0_lo, acc0_hi)
+                                MADD_ROW(1, acc1_lo, acc1_hi)
+                                MADD_ROW(2, acc2_lo, acc2_hi)
+                                MADD_ROW(3, acc3_lo, acc3_hi)
+                                #undef MADD_ROW
                             }
 
                             // store back
