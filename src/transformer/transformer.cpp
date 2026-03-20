@@ -53,7 +53,7 @@ int Transformer::greedy_sample(Tensor& logits) {
 }
 
 // temperature + top-p (nucleus) sample
-int Transformer::sample(float* logits, int n, float temperature, float top_p,
+int Transformer::sample(std::vector<float>& logits, int n, float temperature, float top_p,
                         const std::vector<int>& past_tokens, float rep_penalty) {
     // Apply repetition penalty: divide logit of any already-seen token by rep_penalty
     if (rep_penalty != 1.0f) {

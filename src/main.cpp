@@ -59,9 +59,9 @@ int main(int argc, char* argv[]) {
         Tensor L = transformer.forward(next_id, pos++);
         int n = L.numel();
         // Turn them to floats
-        float logits[n];
+        std::vector<float> logits(n);
         for (int j = 0; j < n; j++) 
-            logits[j] = static_cast<float>(L.data()[j]);
+            logits[j] = L.dequantize(L.data()[j]);
         // std::cout << "Here again" << std::endl;
         next_id = transformer.sample(logits, n, 0.8f, 0.9f, generated);
         std::cout << "Here finally" << std::endl;

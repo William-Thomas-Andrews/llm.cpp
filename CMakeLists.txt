@@ -49,7 +49,7 @@ target_link_libraries(jarvis_lib PUBLIC BLAS::BLAS)
 
 add_executable(jarvis src/main.cpp)
 target_link_libraries(jarvis PRIVATE jarvis_lib)
-target_compile_options(jarvis PRIVATE -march=sapphirerapids)
+target_compile_options(jarvis PRIVATE -march=native -mavx2 -mavx)
 # target_link_libraries(jarvis PRIVATE nlohmann_json::nlohmann_json)
 
 

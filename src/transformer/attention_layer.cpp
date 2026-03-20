@@ -58,7 +58,6 @@ Tensor AttentionLayer::forward(Tensor& X, int pos, TransformerWeights& W, KVCach
         int kv_head = h / kv_per_head;
 
         int8_t* q_head = Q.data() + h * head_dim;
-        // int8_t* out_head = output.data() + h * head_dim; /
 
         // compute scores dot(q_head, each cached k for kv_h)
         for (int t = 0; t <= pos; t++) {
@@ -72,7 +71,6 @@ Tensor AttentionLayer::forward(Tensor& X, int pos, TransformerWeights& W, KVCach
 
         // weighted sum of V: out_head += scores[t] * v_cache[t]
         for (int t = 0; t <= pos; t++) {
-            // int8_t* v_t = v_cache_ptr + t * kv_dim + kv_head * head_dim; /
             for (int d = 0; d < head_dim; d++) {
                 float v_val = kv_cache.v_cache[layer_idx].dequantize(v_cache_ptr[d + t * kv_dim + kv_head * head_dim]);
                 out_head[h * head_dim + d] += scores[t] * v_val;

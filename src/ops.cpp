@@ -708,3 +708,8 @@ void scale(float* array, int n, float scalar) {
     for (int i = 0; i < n; i++)
         array[i] *= scalar;
 }
+
+void scale(std::vector<float>& array, int n, float scalar) {
+    for (int i = 0; i < n; i++)
+        array[i] *= scalar;
+}

@@ -77,7 +77,9 @@ Tensor mul(Tensor& A, Tensor& B);
 // ---
 // Scaling
 void scale(float* array, int n, float scalar);
+void scale(std::vector<float>& array, int n, float scalar);
 
 // --- 
 // Array softmax
 void softmax(float* array, int n);
+void softmax(std::vector<float>& array, int n);
