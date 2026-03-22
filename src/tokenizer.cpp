@@ -3,12 +3,12 @@
 // TODO: experiment with implementing custom concurrent hashmap into here
 
 Tokenizer::Tokenizer(const std::string& model_path) {
-    // : vocab_(MAP_INITIAL_SIZE), id_to_token_(MAP_INITIAL_SIZE) {
     load(model_path);
     bos_id_ = processor_.bos_id();
     eos_id_ = processor_.eos_id();
     pad_id_ = processor_.pad_id();
     vocab_size_ = processor_.GetPieceSize();
+    // TODO
     // for (int i = 0; i < vocab_size_; i++) { // Input data to custom map 
     //     std::string piece = processor_.IdToPiece(i);
     //     vocab_.insert(piece, i);

@@ -3,7 +3,7 @@
 
 
 // ------------------------------------------------------------------
-// 'id_node' implementation
+// id_node
 
 void print_id_node(const std::unique_ptr<id_node> input) {
     if (input == nullptr) std::cout << "||-||" << std::endl;
@@ -30,7 +30,7 @@ std::ostream& operator<<(std::ostream& out, const id_node& input) {
 
 
 // ------------------------------------------------------------------
-// 'id_bucket' implementation
+// id_bucket
 
 // Normal Constructor
 id_bucket::id_bucket(std::unique_ptr<id_node> other) {
@@ -78,7 +78,7 @@ id_node id_bucket::pop() {
 
 
 // ------------------------------------------------------------------
-// 'IdHashMap' implementation
+// IdHashMap
 
 // 0. Default Constructor
 IdHashMap::IdHashMap() : num_entries_(0), num_items_(0), capacity_(16) {

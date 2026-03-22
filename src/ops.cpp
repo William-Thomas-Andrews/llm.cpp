@@ -2,6 +2,7 @@
 
 #include <cblas.h>
 
+
 // ---
 // Matrix Multiplication
 
@@ -69,24 +70,6 @@ Tensor matmul(Tensor& A, Tensor& B, LIB mult, bool transB) {
         default:                        throw std::runtime_error("Unsupported multiplication.");
     }
 }
-
-// A: [M, K], B: [K, N], C: [M, N]
-// Tensor matmul(Tensor& A, Tensor B, LIB mult) {
-//     // A must be [M, K], B must be [K, N]
-//     if (A.ndim() != 2 || B.ndim() != 2) throw std::runtime_error("Error: dimensions incorrect.");
-//     if (A.shape_at(1) != B.shape_at(0)) throw std::runtime_error("Error: columns of A do not match rows of B.");
-//     if (!A.is_contiguous() || !B.is_contiguous()) throw std::runtime_error("Error: data not contiguous.");
-
-//     int M = A.shape_at(0);
-//     int K = A.shape_at(1);
-//     int N = B.shape_at(1);
-
-//     switch(mult) {
-//         case LIB::NAIVE:     return matmul_naive(A, B, M, K, N);
-//         case LIB::BLAS:      return matmul_blas(A, B, M, K, N);
-//         default:                        throw std::runtime_error("Unsupported multiplication.");
-//     }
-// }
 
 //
 // ---

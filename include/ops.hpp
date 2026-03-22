@@ -3,6 +3,7 @@
 #include "tensor.hpp"
 #include <cmath>
 
+
 // ---
 // Backend selector
 // Extensible: add CUDA, OpenCL, and other backends later
@@ -12,6 +13,10 @@ enum class Backend {
     CPU,
     CUDA,   // future
 };
+
+
+// ---
+// Matrix Multiplication Method Selector
 
 enum class LIB {
     NAIVE,

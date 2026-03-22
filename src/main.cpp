@@ -32,11 +32,6 @@ int main(int argc, char* argv[]) {
 
     std::vector<int> input_ids;
     input_ids.push_back(transformer.tokenizer().bos_id());
-    // append(input_ids, "<|system|>\nYou are a helpful assistent.\n");
-    // input_ids.push_back(transformer.tokenizer().eos_id());
-    // append(input_ids, "\n<|user|>\n" + prompt);
-    // input_ids.push_back(transformer.tokenizer().eos_id());
-    // append(input_ids, "\n<|assistant|>\n");
     append(input_ids, prompt);
 
     std::cout << prompt;
@@ -52,10 +47,10 @@ int main(int argc, char* argv[]) {
 
     // generate
     next_id = input_ids.back(); // get last element
-    for (int i = 0; i < max_tokens; i++) {
+    for (int i = 0; next_id != transformer.tokenizer().eos_id() && i < max_tokens; i++) {
         Tensor logits = transformer.forward(next_id, pos++);
         next_id = transformer.sample(logits, 0.2f, 0.9f, generated);
-if (next_id == transformer.tokenizer().eos_id()) break;
+        if (next_id == transformer.tokenizer().eos_id()) break;
         if (next_id >= transformer.tokenizer().vocab_size()) break;  // chat template tokens (<|assistant|> etc.)
         generated.push_back(next_id);
         std::cout << transformer.tokenizer().decode(next_id);
@@ -63,21 +58,6 @@ if (next_id == transformer.tokenizer().eos_id()) break;
     }
 
     std::cout << "\n";
-
-    // printf("=== [Debug TransformerConfig] ===\n");
-    // printf("d_model:      %d\n", transformer.config().d_model);
-    // printf("num_heads:    %d\n", transformer.config().num_heads);
-    // printf("num_kv_heads: %d\n", transformer.config().num_kv_heads);
-    // printf("num_layers:   %d\n", transformer.config().num_layers);
-    // printf("ffn_dim:      %d\n", transformer.config().ffn_dim);
-    // printf("max_seq_len:  %d\n", transformer.config().max_seq_len);
-    // printf("rope_theta:   %.1f\n", transformer.config().rope_theta);
-    // printf("eps:          %e\n", transformer.config().eps);
-
-    // printf("[Debug KVCache] Initialized: %d layers, k_cache[0] shape=(%d, %d)\n",
-    // (int)transformer.kv_cache().k_cache.size(),
-    //     transformer.kv_cache().k_cache[0].shape_at(0),
-    //     transformer.kv_cache().k_cache[0].shape_at(1));
 
     return 0;
 }

@@ -3,7 +3,7 @@
 
 
 // ------------------------------------------------------------------
-// 'vocab_node' implementation
+// vocab_node
 
 void print_vocab_node(const std::unique_ptr<vocab_node> input) {
     if (input == nullptr) std::cout << "||-||" << std::endl;
@@ -31,7 +31,7 @@ std::ostream& operator<<(std::ostream& out, const vocab_node& input) {
 
 
 // ------------------------------------------------------------------
-// 'vocab_bucket' implementation
+// vocab_bucket
 
 // Normal Constructor
 vocab_bucket::vocab_bucket(std::unique_ptr<vocab_node> other) {
@@ -79,7 +79,7 @@ vocab_node vocab_bucket::pop() {
 
 
 // ------------------------------------------------------------------
-// 'VocabHashMap' implementation
+// VocabHashMap
 
 // 0. Default Constructor
 VocabHashMap::VocabHashMap() : num_entries_(0), num_items_(0), capacity_(16) {
