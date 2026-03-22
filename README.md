@@ -12,13 +12,7 @@ The default model is **TinyLlama-1.1B-Chat**, a compact chat-tuned LLaMA model t
 - BLAS (e.g. OpenBLAS)
 - [SentencePiece](https://github.com/google/sentencepiece) (`libsentencepiece` installed to `~/.local`)
 
-## Build
 
-```bash
-./run_build.sh
-```
-
-This runs `cmake .. && make` inside the `build/` directory. The binary is output to `build/bin/jarvis`.
 
 ## Model Setup
 
@@ -47,10 +41,20 @@ python3 tools/convert_weights.py models/tinyllama-chat models/tinyllama-chat/mod
 
 This converts the bfloat16 safetensors weights to float32 and writes them to `model.bin`.
 
+## 
+```bash
+mkdir build   # make a build directory for the CMakeLists to identify
+```
+
+## Build
+
+```bash
+./run_build.sh   # runs 'cmake .. && make' inside the 'build/' directory
+```
+
 ## Run
 
 ```bash
-./run_build.sh   # builds using CMakeLists.txt
 ./execute.sh     # runs the executable
 ```
 
