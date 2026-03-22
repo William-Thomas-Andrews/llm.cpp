@@ -43,7 +43,7 @@ This converts the bfloat16 safetensors weights to float32 and writes them to `mo
 
 ## Set up 'build' directory
 ```bash
-mkdir build   # make a build directory for the CMakeLists to identify
+mkdir build     # make a build directory for the CMakeLists to identify
 ```
 
 ## Build
