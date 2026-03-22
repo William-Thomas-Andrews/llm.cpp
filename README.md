@@ -1,6 +1,6 @@
 # llm.cpp
 
-A from-scratch C++ LLM inference engine. Loads transformer weights, runs tokenization via SentencePiece, and generates text using greedy/top-p sampling — no external ML framework required.
+A from-scratch C++ LLM inference engine. Loads transformer weights, runs tokenization via SentencePiece, and generates text using greedy/top-p sampling.
 
 The default model is **TinyLlama-1.1B-Chat**, a compact chat-tuned LLaMA model that fits easily in CPU RAM.
 
