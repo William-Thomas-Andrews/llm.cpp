@@ -41,7 +41,7 @@ python3 tools/convert_weights.py models/tinyllama-chat models/tinyllama-chat/mod
 
 This converts the bfloat16 safetensors weights to float32 and writes them to `model.bin`.
 
-## 
+## Set up 'build' directory
 ```bash
 mkdir build   # make a build directory for the CMakeLists to identify
 ```
